@@ -1,0 +1,14 @@
+# 鹦鹉全球金融早报 - 后端依赖
+# 安装命令：pip install -r requirements.txt
+
+# RSS 解析
+feedparser>=6.0.10
+
+# 环境变量加载
+python-dotenv>=1.0.0
+
+# Supabase 官方 SDK（注意：是 supabase，不是 supabase-py）
+supabase>=2.4.0
+
+# OpenAI SDK（DeepSeek 兼容此接口）
+openai>=1.30.0

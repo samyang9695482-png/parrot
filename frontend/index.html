@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#1a3a5c" />
+  <meta name="description" content="鹦鹉全球金融早报 - 每日8点，看懂全球金融" />
+  <title>鹦鹉全球金融早报</title>
+
+  <!-- PWA 清单文件 -->
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- 样式表 -->
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- 图标 -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦜%3C/text%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦜%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- 顶部品牌区 -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">🦜</span>
+        <div class="brand-text">
+          <h1 class="brand-title">鹦鹉全球金融早报</h1>
+          <p class="brand-subtitle">每日8点，看懂全球金融</p>
+        </div>
+      </div>
+      <div class="date-display" id="dateDisplay"></div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+    <!-- 加载状态 -->
+    <div id="loadingState" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">正在加载今日新闻...</p>
+    </div>
+
+    <!-- 四个栏目容器，JS 动态渲染 -->
+    <div id="newsContainer"></div>
+
+    <!-- 底部间距（给固定下载按钮留空间） -->
+    <div class="bottom-spacer"></div>
+  </main>
+
+  <!-- 底部固定下载按钮（变现入口） -->
+  <footer class="download-footer">
+    <a
+      id="downloadBtn"
+      href="https://pan.quark.cn/s/your-share-id"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="download-btn"
+    >
+      📦 下载完整数据包
+    </a>
+  </footer>
+
+  <!-- 业务脚本 -->
+  <script>
+    // ============================================================
+    // 配置区：请替换为你的 Supabase 信息
+    // ============================================================
+    const SUPABASE_URL = 'https://your-project.supabase.co';
+    const SUPABASE_ANON_KEY = 'your-anon-key';
+    // 每个栏目显示的新闻条数
+    const NEWS_PER_CATEGORY = 2;
+
+    // 栏目配置：顺序固定
+    const CATEGORIES = [
+      { key: 'global',          name: '🌍 全球',     desc: '全球经济、央行政策、地缘政治' },
+      { key: 'precious_metals', name: '💰 贵金属',   desc: '黄金、白银' },
+      { key: 'stock',           name: '📈 股票',     desc: '美股、港股' },
+      { key: 'crypto',          name: '🪙 币圈',     desc: '比特币、虚拟币' }
+    ];
+
+    // ============================================================
+    // 工具函数
+    // ============================================================
+
+    // 获取今日日期（YYYY-MM-DD），用北京时间
+    function getTodayString() {
+      const now = new Date();
+      const bjTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+      const y = bjTime.getFullYear();
+      const m = String(bjTime.getMonth() + 1).padStart(2, '0');
+      const d = String(bjTime.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // 格式化日期显示（中文）
+    function formatDisplayDate() {
+      const now = new Date();
+      const bjTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+      const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      return `${bjTime.getFullYear()}年${bjTime.getMonth() + 1}月${bjTime.getDate()}日 ${weekdays[bjTime.getDay()]}`;
+    }
+
+    // 转义 HTML，防止 XSS
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    // ============================================================
+    // Supabase 数据读取（用 REST API，无需额外依赖）
+    // ============================================================
+
+    async function fetchTodayNews() {
+      const today = getTodayString();
+      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=eq.${today}&order=created_at.desc`;
+
+      const resp = await fetch(url, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Supabase 请求失败: ${resp.status}`);
+      }
+      return resp.json();
+    }
+
+    // 从 Service Worker 缓存读取兜底数据
+    async function fetchCachedNews() {
+      try {
+        const cache = await caches.open('parrot-news-cache');
+        const keys = await cache.keys();
+        // 找最近的缓存
+        for (const req of keys) {
+          if (req.url.includes('news-cache-')) {
+            const resp = await cache.match(req);
+            if (resp) return resp.json();
+          }
+        }
+      } catch (e) {
+        console.warn('读取缓存失败:', e);
+      }
+      return null;
+    }
+
+    // 将数据缓存到 Service Worker
+    async function cacheNewsData(data) {
+      try {
+        const cache = await caches.open('parrot-news-cache');
+        const today = getTodayString();
+        await cache.put(
+          new Request(`news-cache-${today}.json`),
+          new Response(JSON.stringify(data), {
+            headers: { 'Content-Type': 'application/json' }
+          })
+        );
+        // 清理超过3天的旧缓存
+        const keys = await cache.keys();
+        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        for (const req of keys) {
+          const match = req.url.match(/news-cache-(\d{4})-(\d{2})-(\d{2})\.json/);
+          if (match) {
+            const [, y, m, d] = match;
+            const cacheDate = new Date(`${y}-${m}-${d}`).getTime();
+            if (cacheDate < threeDaysAgo) {
+              await cache.delete(req);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('缓存数据失败:', e);
+      }
+    }
+
+    // ============================================================
+    // 渲染函数
+    // ============================================================
+
+    function renderNews(newsList) {
+      const container = document.getElementById('newsContainer');
+      container.innerHTML = '';
+
+      // 按 category 分组
+      const grouped = {};
+      CATEGORIES.forEach(cat => { grouped[cat.key] = []; });
+      newsList.forEach(item => {
+        if (grouped[item.category]) {
+          grouped[item.category].push(item);
+        }
+      });
+
+      // 按固定顺序渲染四个栏目
+      CATEGORIES.forEach(cat => {
+        const section = document.createElement('section');
+        section.className = 'category-section';
+        section.innerHTML = `
+          <div class="category-header">
+            <h2 class="category-title">${escapeHtml(cat.name)}</h2>
+            <span class="category-desc">${escapeHtml(cat.desc)}</span>
+          </div>
+        `;
+
+        const items = (grouped[cat.key] || []).slice(0, NEWS_PER_CATEGORY);
+
+        if (items.length === 0) {
+          const placeholder = document.createElement('div');
+          placeholder.className = 'news-card empty-card';
+          placeholder.innerHTML = `<p class="empty-text">暂无更新</p>`;
+          section.appendChild(placeholder);
+        } else {
+          items.forEach(item => {
+            const card = document.createElement('article');
+            card.className = 'news-card';
+            const sourceText = item.source ? `来源：${escapeHtml(item.source)}` : '';
+            card.innerHTML = `
+              <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+              <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
+              ${sourceText ? `<p class="news-source">${sourceText}</p>` : ''}
+            `;
+            section.appendChild(card);
+          });
+        }
+
+        container.appendChild(section);
+      });
+    }
+
+    // ============================================================
+    // 主流程
+    // ============================================================
+
+    async function main() {
+      // 显示日期
+      document.getElementById('dateDisplay').textContent = formatDisplayDate();
+
+      const loading = document.getElementById('loadingState');
+
+      try {
+        // 先尝试从网络读取
+        const news = await fetchTodayNews();
+        await cacheNewsData(news);
+        renderNews(news);
+      } catch (err) {
+        console.error('加载在线数据失败，尝试读取缓存:', err);
+        // 失败则尝试从缓存读取
+        const cached = await fetchCachedNews();
+        if (cached && cached.length > 0) {
+          renderNews(cached);
+        } else {
+          // 都失败了，显示空状态
+          renderNews([]);
+        }
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    // 注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('./service-worker.js')
+          .then(reg => console.log('Service Worker 注册成功:', reg.scope))
+          .catch(err => console.warn('Service Worker 注册失败:', err));
+      });
+    }
+
+    // 启动
+    main();
+  </script>
+</body>
+</html>
