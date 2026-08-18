@@ -76,11 +76,13 @@
     // ============================================================
 
     function getBeijingDate(offsetDays = 0) {
-      // 无论浏览器本地时区是什么，统一按「北京时间 UTC+8」计算日期
+      // ✅ 无论浏览器本地时区是什么，统一按「北京时间 UTC+8」计算日期
+      // Date.now() 本身就是 UTC epoch ms，直接 +8h 偏移就是"北京时间的绝对时刻"
+      // 然后用 getUTC* 系列方法读出这个时刻的年月日，就是北京时间的年月日
       // offsetDays=0 → 今天；offsetDays=1 → 明天（北京时间）
       const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
-      const utcNow = Date.now() + new Date().getTimezoneOffset() * 60 * 1000; // 等效 UTC 基准
-      const bjDate = new Date(utcNow + BEIJING_OFFSET_MS + offsetDays * 24 * 60 * 60 * 1000);
+      const bjEpochMs = Date.now() + BEIJING_OFFSET_MS + offsetDays * 24 * 60 * 60 * 1000;
+      const bjDate = new Date(bjEpochMs);
       const y = bjDate.getUTCFullYear();
       const m = String(bjDate.getUTCMonth() + 1).padStart(2, '0');
       const d = String(bjDate.getUTCDate()).padStart(2, '0');
@@ -98,8 +100,7 @@
     function formatDisplayDate() {
       // 同样用北京时间显示，避免跨时区显示成"昨天"
       const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
-      const utcNow = Date.now() + new Date().getTimezoneOffset() * 60 * 1000;
-      const now = new Date(utcNow + BEIJING_OFFSET_MS);
+      const now = new Date(Date.now() + BEIJING_OFFSET_MS);
       const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       return `${now.getUTCFullYear()}年${now.getUTCMonth() + 1}月${now.getUTCDate()}日 ${weekdays[now.getUTCDay()]}`;
     }
