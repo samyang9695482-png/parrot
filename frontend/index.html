@@ -57,11 +57,11 @@
 
   <script>
     // ============================================================
-    // 🔑 配置区：请确保 SUPABASE_ANON_KEY 是完整的 anon 密钥
+    // 🔑 配置区
     // ============================================================
     const SUPABASE_URL = 'https://jrriwqflqmsxsgqazmcg.supabase.co';
-    // ⚠️ 下面这一行改成你从 Supabase API 页面复制的完整 anon 密钥
-    const SUPABASE_ANON_KEY = 'sb_publishable_qazOCCYcoQLmsbVnpBl2LQ_DiEUEApx';
+    // 使用正确的 anon 密钥（从 Supabase API 页面复制）
+    const SUPABASE_ANON_KEY = 'sb_publishable_qaz0CCYcoQLmsbVnpB1L2LQ_DiEUEtTgXxJ';
 
     const NEWS_PER_CATEGORY = 2;
     const CATEGORIES = [
@@ -77,18 +77,17 @@
 
     function getTodayString() {
       const now = new Date();
-      const bjTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
-      const y = bjTime.getFullYear();
-      const m = String(bjTime.getMonth() + 1).padStart(2, '0');
-      const d = String(bjTime.getDate()).padStart(2, '0');
+      // 直接用本地时间，避免时区问题
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
 
     function formatDisplayDate() {
       const now = new Date();
-      const bjTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
       const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-      return `${bjTime.getFullYear()}年${bjTime.getMonth() + 1}月${bjTime.getDate()}日 ${weekdays[bjTime.getDay()]}`;
+      return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
     }
 
     function escapeHtml(str) {
@@ -98,7 +97,7 @@
     }
 
     // ============================================================
-    // 带超时的 fetch（5秒超时，防止无限转圈）
+    // 带超时的 fetch
     // ============================================================
 
     function fetchWithTimeout(url, options, timeout = 5000) {
@@ -111,12 +110,13 @@
     }
 
     // ============================================================
-    // Supabase 数据读取
+    // Supabase 数据读取（改用范围查询，解决日期匹配问题）
     // ============================================================
 
     async function fetchTodayNews() {
       const today = getTodayString();
-      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=eq.${today}&order=created_at.desc`;
+      // 改为范围查询：gte 今天 00:00:00，lt 明天 00:00:00
+      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${today}&date=lt.${today}&order=created_at.desc`;
 
       console.log('📡 请求 URL:', url);
 
@@ -133,49 +133,6 @@
         throw new Error(`HTTP ${resp.status}: ${text}`);
       }
       return resp.json();
-    }
-
-    async function fetchCachedNews() {
-      try {
-        const cache = await caches.open('parrot-news-cache');
-        const keys = await cache.keys();
-        for (const req of keys) {
-          if (req.url.includes('news-cache-')) {
-            const resp = await cache.match(req);
-            if (resp) return resp.json();
-          }
-        }
-      } catch (e) {
-        console.warn('读取缓存失败:', e);
-      }
-      return null;
-    }
-
-    async function cacheNewsData(data) {
-      try {
-        const cache = await caches.open('parrot-news-cache');
-        const today = getTodayString();
-        await cache.put(
-          new Request(`news-cache-${today}.json`),
-          new Response(JSON.stringify(data), {
-            headers: { 'Content-Type': 'application/json' }
-          })
-        );
-        const keys = await cache.keys();
-        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        for (const req of keys) {
-          const match = req.url.match(/news-cache-(\d{4})-(\d{2})-(\d{2})\.json/);
-          if (match) {
-            const [, y, m, d] = match;
-            const cacheDate = new Date(`${y}-${m}-${d}`).getTime();
-            if (cacheDate < threeDaysAgo) {
-              await cache.delete(req);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('缓存数据失败:', e);
-      }
     }
 
     // ============================================================
@@ -250,7 +207,6 @@
         console.log('🚀 开始加载数据...');
         const news = await fetchTodayNews();
         console.log('✅ 获取到数据条数:', news.length);
-        await cacheNewsData(news);
         renderNews(news);
       } catch (err) {
         console.error('❌ 加载失败:', err);
