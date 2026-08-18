@@ -116,7 +116,12 @@
     async function fetchTodayNews() {
       const today = getTodayString();
       // 改为范围查询：gte 今天 00:00:00，lt 明天 00:00:00
-      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${today}&date=lt.${today}&order=created_at.desc`;
+      // 计算明天的日期
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${today}&date=lt.${tomorrowStr}&order=created_at.desc`;
 
       console.log('📡 请求 URL:', url);
 
