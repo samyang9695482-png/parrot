@@ -60,7 +60,7 @@
     // 🔑 配置区
     // ============================================================
     const SUPABASE_URL = 'https://jrriwqflqmsxsgqazmcg.supabase.co';
-    // 使用正确的 anon 密钥（从 Supabase API 页面复制）
+    // ✅ Supabase anon publishable key（用户 08-19 提供；严格区分字母 O/l 与数字 0/1）
     const SUPABASE_ANON_KEY = 'sb_publishable_qazOCCYcoQLmsbVnpBl2LQ_DiEUEApx';
 
     const NEWS_PER_CATEGORY = 2;
@@ -75,19 +75,33 @@
     // 工具函数
     // ============================================================
 
-    function getTodayString() {
-      const now = new Date();
-      // 直接用本地时间，避免时区问题
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
+    function getBeijingDate(offsetDays = 0) {
+      // 无论浏览器本地时区是什么，统一按「北京时间 UTC+8」计算日期
+      // offsetDays=0 → 今天；offsetDays=1 → 明天（北京时间）
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const utcNow = Date.now() + new Date().getTimezoneOffset() * 60 * 1000; // 等效 UTC 基准
+      const bjDate = new Date(utcNow + BEIJING_OFFSET_MS + offsetDays * 24 * 60 * 60 * 1000);
+      const y = bjDate.getUTCFullYear();
+      const m = String(bjDate.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(bjDate.getUTCDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
 
+    function getTodayString() {
+      return getBeijingDate(0);   // 北京时间 今日
+    }
+
+    function getTomorrowString() {
+      return getBeijingDate(1);   // 北京时间 明日
+    }
+
     function formatDisplayDate() {
-      const now = new Date();
+      // 同样用北京时间显示，避免跨时区显示成"昨天"
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const utcNow = Date.now() + new Date().getTimezoneOffset() * 60 * 1000;
+      const now = new Date(utcNow + BEIJING_OFFSET_MS);
       const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-      return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+      return `${now.getUTCFullYear()}年${now.getUTCMonth() + 1}月${now.getUTCDate()}日 ${weekdays[now.getUTCDay()]}`;
     }
 
     function escapeHtml(str) {
@@ -115,15 +129,13 @@
 
     async function fetchTodayNews() {
       const today = getTodayString();
-      // 改为范围查询：gte 今天 00:00:00，lt 明天 00:00:00
-      // 计算明天的日期
-const tomorrow = new Date();
-tomorrow.setDate(tomorrow.getDate() + 1);
-const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${today}&date=lt.${tomorrowStr}&order=created_at.desc`;
+      const tomorrow = getTomorrowString();
+      // ✅ 范围查询：date >= 今日 00:00 AND date < 明日 00:00
+      //    覆盖 DATE 列（纯日期）和 TIMESTAMPTZ 列（带时间）两种情况
+      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${today}&date=lt.${tomorrow}&order=created_at.desc`;
 
       console.log('📡 请求 URL:', url);
+      console.log('🕐 北京时间今日:', today, '  明日:', tomorrow);
 
       const resp = await fetchWithTimeout(url, {
         headers: {
