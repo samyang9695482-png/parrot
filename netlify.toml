@@ -1,12 +1,17 @@
 # Netlify 部署配置
+# ⚠️ 重要：Netlify 后台的 Build settings 中，请保持：
+#   - Base directory = frontend      (发布根目录是 frontend/)
+#   - Build command     = (留空)
+#   - Publish directory = (留空或 '.')  ← 不要填 'frontend'！否则会双重拼接成 frontend/frontend
+# 本文件 publish = "." 表示：publish 目录 = Base directory 本身，即 frontend/
 # 文档：https://docs.netlify.com/configure-builds/file-based-configuration/
 
 # ============================================================
 # 构建配置
 # ============================================================
 [build]
-  # 发布目录：前端静态文件在 frontend/ 下
-  publish = "frontend"
+  # 发布目录：相对 Base directory 的路径。当 Base directory=frontend 时，"." 表示就用 frontend/ 本身
+  publish = "."
 
   # 无构建步骤（纯静态 PWA，没有 build 命令）
   command = ""
@@ -15,44 +20,52 @@
 # 重定向规则
 # ============================================================
 
-# 把根目录 /img/* 请求映射到 frontend/img/*
-# 这样无论 index.html / manifest.json 里写的是 /img/yinwu.png 还是 img/yinwu.png，
-# Netlify 都能正确找到 frontend/img/yinwu.png
+# 规则 A：PWA 图标路径双重兼容
+#  - 当 Base directory=frontend 时，Netlify 把 frontend/ 映射为站点根
+#  - 所以 /img/yinwu.png 请求 ←→ frontend/img/yinwu.png 文件（自动匹配）
+#  - 这里再补一条前端里若写了 '/frontend/img/...' 这种多前缀错误路径也能正确跳
 [[redirects]]
-  from = "/img/*"
+  from = "/frontend/img/*"
   to = "/img/:splat"
+  status = 301
+
+# 规则 B：TWA / PWABuilder 会查的数字资产证明文件（必须可访问）
+[[redirects]]
+  from = "/.well-known/assetlinks.json"
+  to = "/.well-known/assetlinks.json"
   status = 200
 
-# SPA 回退：所有未匹配的路径回退到 index.html（PWA 必需）
+# 规则 C：SPA 回退。所有未匹配的 GET 请求回退到 index.html（PWA 必需）
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  # 不重定向已存在的静态资源（css/js/png/json/svg 等）
-  force = false
+  force = false                   # 不强制覆盖存在的静态文件（/css /js /img）
 
 # ============================================================
 # HTTP 头
 # ============================================================
 
-# PWA manifest 和 service worker 必须用正确的 MIME 类型
+# PWA manifest：必须 application/manifest+json，不缓存
 [[headers]]
   for = "/manifest.json"
   [headers.values]
     Content-Type = "application/manifest+json"
     Cache-Control = "public, max-age=0, must-revalidate"
+    Access-Control-Allow-Origin = "*"
 
+# Service Worker：no-cache
 [[headers]]
   for = "/service-worker.js"
   [headers.values]
     Content-Type = "application/javascript; charset=utf-8"
     Cache-Control = "no-cache"
 
-# PWA 图标
+# PWA 图标：缓存 1 天
 [[headers]]
   for = "/img/*"
   [headers.values]
-    Cache-Control = "public, max-age=86400"
+    Cache-Control = "public, max-age=86400, immutable"
 
 # TWA 资产证明
 [[headers]]
@@ -60,3 +73,9 @@
   [headers.values]
     Content-Type = "application/json"
     Cache-Control = "public, max-age=86400"
+
+# .well-known 目录允许跨域（有些 TWA 校验器需要）
+[[headers]]
+  for = "/.well-known/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
