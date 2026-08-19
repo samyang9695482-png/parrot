@@ -55,6 +55,20 @@
     </a>
   </footer>
 
+  <!-- 新闻详情弹层（半屏 sheet，关怀版风格） -->
+  <div class="detail-overlay" id="detailOverlay" hidden></div>
+  <aside class="detail-modal" id="detailModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <button class="detail-close" id="detailClose" aria-label="关闭详情" type="button">✕</button>
+    <div class="detail-content">
+      <h2 class="detail-title" id="detailTitle"></h2>
+      <div class="detail-meta">
+        <span class="detail-meta-item" id="detailSource"></span>
+        <span class="detail-meta-item" id="detailTime"></span>
+      </div>
+      <div class="detail-body" id="detailBody"></div>
+    </div>
+  </aside>
+
   <script>
     // ============================================================
     // 🔑 配置区
@@ -64,6 +78,8 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_qazOCCYcoQLmsbVnpBl2LQ_DiEUEApx';
 
     const NEWS_PER_CATEGORY = 2;
+    // 当日所有新闻缓存：详情页从这里按 idx 取数据，避免 dataset 存大字符串
+    let newsDataCache = [];
     const CATEGORIES = [
       { key: 'global',          name: '🌍 全球',     desc: '全球经济、央行政策、地缘政治' },
       { key: 'precious_metals', name: '💰 贵金属',   desc: '黄金、白银' },
@@ -160,6 +176,7 @@
     function renderNews(newsList) {
       const container = document.getElementById('newsContainer');
       container.innerHTML = '';
+      newsDataCache = []; // 重置缓存，避免上次遗留
 
       if (!newsList || newsList.length === 0) {
         container.innerHTML = `
@@ -198,17 +215,86 @@
           section.appendChild(placeholder);
         } else {
           items.forEach(item => {
+            // 把 item 推进缓存，记下它的索引，详情页通过 idx 取数据
+            const idx = newsDataCache.length;
+            newsDataCache.push(item);
+
             const card = document.createElement('article');
-            card.className = 'news-card';
+            card.className = 'news-card news-card--clickable';
+            card.dataset.idx = String(idx);
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
             card.innerHTML = `
               <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
               <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
+              <span class="news-read-more">查看详情 ›</span>
             `;
+            // 点击打开详情
+            card.addEventListener('click', () => openDetail(idx));
+            // 键盘回车 / 空格也能打开（无障碍）
+            card.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openDetail(idx);
+              }
+            });
             section.appendChild(card);
           });
         }
         container.appendChild(section);
       });
+    }
+
+    // ============================================================
+    // 详情弹层：打开 / 关闭
+    // ============================================================
+
+    function formatPublishTime(item) {
+      // 优先 published，其次 created_at；都没有返回空串
+      const raw = (item.published || item.created_at || '').toString().trim();
+      if (!raw) return '';
+      // 尝试转成北京时间可读格式；解析失败就退回原样
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw;
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const bj = new Date(d.getTime() + BEIJING_OFFSET_MS);
+      const y = bj.getUTCFullYear();
+      const m = String(bj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(bj.getUTCDate()).padStart(2, '0');
+      const hh = String(bj.getUTCHours()).padStart(2, '0');
+      const mm = String(bj.getUTCMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function openDetail(idx) {
+      const item = newsDataCache[idx];
+      if (!item) return;
+
+      document.getElementById('detailTitle').textContent = item.title || '无标题';
+      document.getElementById('detailSource').textContent =
+        item.source ? `来源：${item.source}` : '';
+      const t = formatPublishTime(item);
+      document.getElementById('detailTime').textContent = t ? `发布时间：${t}` : '';
+
+      // 正文优先 full_text；为空则退回 summary；都没有则占位
+      const fullText = (item.full_text && item.full_text.toString().trim())
+        || (item.summary && item.summary.toString().trim())
+        || '暂无正文内容';
+      document.getElementById('detailBody').textContent = fullText;
+
+      const overlay = document.getElementById('detailOverlay');
+      const modal = document.getElementById('detailModal');
+      overlay.hidden = false;
+      modal.hidden = false;
+      document.body.classList.add('detail-open'); // 锁背景滚动
+      // 把焦点放到关闭按钮，方便键盘用户立刻按 esc / 回车关闭
+      setTimeout(() => document.getElementById('detailClose').focus(), 50);
+    }
+
+    function closeDetail() {
+      document.getElementById('detailOverlay').hidden = true;
+      document.getElementById('detailModal').hidden = true;
+      document.body.classList.remove('detail-open');
     }
 
     // ============================================================
@@ -248,6 +334,17 @@
           .catch(err => console.warn('Service Worker 注册失败:', err));
       });
     }
+
+    // ============================================================
+    // 详情弹层事件绑定：X 按钮 / 点遮罩关闭 / Esc 关闭
+    // ============================================================
+    document.getElementById('detailClose').addEventListener('click', closeDetail);
+    document.getElementById('detailOverlay').addEventListener('click', closeDetail);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('detailModal').hidden) {
+        closeDetail();
+      }
+    });
 
     main();
   </script>

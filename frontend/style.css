@@ -1,7 +1,8 @@
 /* ============================================================
-   鹦鹉全球金融早报 - 适老化大字版样式
+   鹦鹉全球金融早报 - 关怀版样式（参考腾讯新闻关怀版）
    主色调：深蓝 #1a3a5c  |  辅助色：暖橙 #e8850e
-   正文字号：22px  |  行高：1.8
+   层次：白底页面 → 浅灰栏目卡 (#f5f6fa) → 白底新闻条目
+   正文字号：18px  |  标题字号：24px  |  行高：1.8
    ============================================================ */
 
 /* ------ 全局重置 ------ */
@@ -21,13 +22,18 @@ html {
 body {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
                "Helvetica Neue", Helvetica, Arial, sans-serif;
-  background-color: #f5f6fa;           /* 浅灰背景 */
-  color: #1a3a5c;                      /* 深蓝正文 */
+  background-color: #ffffff;           /* 页面白底，让浅灰栏目卡凸显 */
+  color: #1a3a5c;                      /* 深蓝正文，对比度 ≥ 4.5:1 */
   line-height: 1.8;
-  font-size: 22px;                     /* 正文 22px */
+  font-size: 18px;                     /* 正文 18px */
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 详情弹层打开时锁背景滚动 */
+body.detail-open {
+  overflow: hidden;
 }
 
 /* ------ 顶部品牌区 ------ */
@@ -126,64 +132,94 @@ body {
   font-weight: 500;
 }
 
-/* ------ 栏目区块 ------ */
+/* ------ 栏目区块（整栏目浅灰容器卡，关怀版核心结构） ------ */
 .category-section {
-  margin-bottom: 32px;
+  background-color: #f5f6fa;          /* 浅灰背景，把整栏目包成一个卡 */
+  border-radius: 16px;
+  padding: 16px;                      /* 内边距 16px */
+  margin-bottom: 20px;
 }
 
 .category-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-  padding-left: 4px;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 0 4px;
 }
 
 .category-title {
-  font-size: 28px;                   /* 栏目标题 28px 加粗 */
+  font-size: 24px;                   /* 栏目标题 24px 加粗 */
   font-weight: 700;
   color: #1a3a5c;
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
 .category-desc {
-  font-size: 18px;
+  font-size: 16px;
   color: #6b7280;
   line-height: 1.5;
 }
 
-/* ------ 新闻卡片 ------ */
+/* ------ 新闻卡片（白底条目，嵌在浅灰栏目卡里） ------ */
 .news-card {
   background-color: #ffffff;
-  border-radius: 16px;
-  padding: 20px;                         /* 卡片内边距 20px */
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);  /* 轻微阴影 */
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.news-card:active {
+.news-card:last-child {
+  margin-bottom: 0;                  /* 最后一条不留多余间距 */
+}
+
+/* 可点击的新闻卡片：明显指针 + 悬浮反馈 */
+.news-card--clickable {
+  cursor: pointer;
+}
+
+.news-card--clickable:hover {
+  box-shadow: 0 2px 10px rgba(26, 58, 92, 0.12);
+}
+
+.news-card--clickable:active {
   transform: scale(0.98);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
+.news-card--clickable:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
 .news-title {
-  font-size: 26px;                   /* 新闻标题 26px 加粗 */
+  font-size: 24px;                   /* 新闻标题 24px 加粗 */
   font-weight: 700;
   color: #1a3a5c;
   line-height: 1.5;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .news-summary {
-  font-size: 22px;                   /* 摘要 22px */
-  color: #4b5563;                    /* 灰色摘要 */
+  font-size: 18px;                   /* 摘要正文 18px */
+  color: #4b5563;
   line-height: 1.8;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+/* 卡片底部"查看详情 ›"引导 */
+.news-read-more {
+  display: inline-block;
+  font-size: 16px;
+  color: #e8850e;                     /* 暖橙高亮 */
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .news-source {
-  font-size: 18px;
+  font-size: 16px;
   color: #9ca3af;
   line-height: 1.5;
 }
@@ -216,7 +252,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(to top, #f5f6fa 70%, rgba(245, 246, 250, 0));
+  background: linear-gradient(to top, #ffffff 70%, rgba(255, 255, 255, 0));
   padding: 20px 20px 24px;
   z-index: 99;
 }
@@ -263,27 +299,25 @@ body {
 }
 
 /* ------ 响应式：小屏适配（<= 380px） ------ */
+/* 关怀版不在小屏降字号，保持 18/24 下限，只调整布局间距 */
 @media (max-width: 380px) {
-  body {
-    font-size: 20px;                 /* 小屏正文略小但仍 ≥ 20px */
-  }
   .brand-title {
-    font-size: 28px;
+    font-size: 26px;
   }
   .brand-icon {
-    font-size: 40px;
+    font-size: 36px;
   }
-  .category-title {
-    font-size: 24px;
+  .main-content {
+    padding: 16px 12px;
   }
-  .news-title {
-    font-size: 22px;
+  .category-section {
+    padding: 12px;
   }
-  .news-summary {
-    font-size: 20px;
+  .news-card {
+    padding: 14px;
   }
   .download-btn {
-    font-size: 20px;
+    font-size: 18px;
   }
 }
 
@@ -294,8 +328,12 @@ body {
     background-color: #1a1d23;
     color: #e5e7eb;
   }
-  .news-card {
+  /* 栏目卡：从浅灰变成深灰，保持层次感 */
+  .category-section {
     background-color: #262a33;
+  }
+  .news-card {
+    background-color: #1f2229;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
   .news-title {
@@ -325,6 +363,186 @@ body {
     border-top-color: #e5e7eb;
   }
   .loading-text {
+    color: #e5e7eb;
+  }
+}
+
+/* ============================================================
+   新闻详情弹层（半屏 sheet，关怀版风格）
+   - 遮罩淡黑，半屏 sheet 从底部滑入
+   - 大字标题、清晰关闭按钮、正文行高 1.8
+   ============================================================ */
+
+/* 遮罩层 */
+.detail-overlay {
+  position: fixed;
+  inset: 0;                           /* 等同于 top:0;right:0;bottom:0;left:0 */
+  background-color: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  animation: detail-fade-in 0.2s ease;
+}
+
+/* 半屏 sheet 主体 */
+.detail-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 720px;
+  margin: 0 auto;
+  max-height: 90vh;
+  background-color: #ffffff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+  z-index: 1001;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: detail-slide-up 0.25s ease;
+}
+
+/* 顶部抓取条（可选视觉元素，方便下拉理解） */
+.detail-modal::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 5px;
+  background-color: #d1d5db;
+  border-radius: 3px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+/* 关闭按钮：右上角大圆 X，点击区 44x44（关怀版硬要求） */
+.detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background-color: #f3f4f6;
+  color: #1a3a5c;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  z-index: 2;
+}
+
+.detail-close:hover {
+  background-color: #e5e7eb;
+}
+
+.detail-close:active {
+  transform: scale(0.92);
+}
+
+.detail-close:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+/* 详情内容区（可滚动） */
+.detail-content {
+  padding: 16px 20px 32px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+/* 详情大标题 */
+.detail-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.5;
+  margin: 8px 56px 16px 0;            /* 右侧留空间避开关闭按钮 */
+}
+
+/* 元信息：来源 / 时间 */
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-meta-item {
+  font-size: 16px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+/* 详情正文：大字 + 高行高 + 段落间距 */
+.detail-body {
+  font-size: 18px;
+  color: #1f2937;
+  line-height: 1.8;
+  white-space: pre-wrap;              /* 保留 full_text 里的换行 */
+  word-break: break-word;
+}
+
+/* 大屏：sheet 不要满宽，居中展示，更像桌面弹窗 */
+@media (min-width: 768px) {
+  .detail-modal {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    border-radius: 20px;
+    max-height: 80vh;
+    width: 720px;
+    animation: detail-fade-in 0.2s ease;
+  }
+  /* 大屏不需要底部抓取条 */
+  .detail-modal::before {
+    display: none;
+  }
+}
+
+/* 弹层动画 */
+@keyframes detail-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes detail-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* 详情弹层深色模式 */
+@media (prefers-color-scheme: dark) {
+  .detail-modal {
+    background-color: #262a33;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  }
+  .detail-modal::before {
+    background-color: #4b5563;
+  }
+  .detail-close {
+    background-color: #1f2229;
+    color: #f9fafb;
+  }
+  .detail-close:hover {
+    background-color: #2d3139;
+  }
+  .detail-title {
+    color: #f9fafb;
+  }
+  .detail-meta {
+    border-bottom-color: #374151;
+  }
+  .detail-meta-item {
+    color: #9ca3af;
+  }
+  .detail-body {
     color: #e5e7eb;
   }
 }
