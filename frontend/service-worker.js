@@ -7,7 +7,9 @@
    ============================================================ */
 
 // 缓存名：更新版本号可触发客户端重新缓存
-const CACHE_VERSION = 'v1.0.0';
+// ⚠️ 每次修改了 index.html / style.css 后，建议把这个版本号也改一下
+//    （例如 v1.1.0 → v1.1.1），强制浏览器清旧缓存拉新版本
+const CACHE_VERSION = 'v1.1.0';
 const STATIC_CACHE = `parrot-static-${CACHE_VERSION}`;
 const NEWS_CACHE = 'parrot-news-cache';    // 与前端 JS 中保持一致
 
@@ -69,6 +71,18 @@ function isNewsApiRequest(url) {
 }
 
 // ============================================================
+// 工具：是否是 HTML 文档请求（导航请求）
+//   - 用于决定走 Network First，保证每次拿到最新 index.html
+// ============================================================
+function isHtmlDocumentRequest(url, destination) {
+  // 浏览器导航请求（用户在地址栏回车、刷新、点链接）一定是 document
+  if (destination === 'document') return true;
+  // 兜底：URL 末尾是 / 或 /index.html
+  if (url.endsWith('/') || url.endsWith('/index.html')) return true;
+  return false;
+}
+
+// ============================================================
 // 工具：是否是静态资源请求
 // ============================================================
 function isStaticAssetRequest(url) {
@@ -83,7 +97,28 @@ function isStaticAssetRequest(url) {
 }
 
 // ============================================================
-// Cache First 策略（用于静态资源）
+// Network First 策略（用于 HTML 文档）
+//   每次都先尝试拿最新 HTML；网络失败才回退缓存
+//   这样改了 index.html 后，下次刷新立刻看到新版本
+// ============================================================
+async function networkFirstHtmlStrategy(request) {
+  try {
+    const networkResp = await fetch(request);
+    if (networkResp && networkResp.status === 200) {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, networkResp.clone());
+    }
+    return networkResp;
+  } catch (err) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    // 最后兜底：用 ./index.html 的缓存
+    return caches.match('./index.html');
+  }
+}
+
+// ============================================================
+// Cache First 策略（用于 CSS / JS / 图片等不变的静态资源）
 // ============================================================
 async function cacheFirstStrategy(request) {
   const cached = await caches.match(request);
@@ -151,14 +186,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 静态资源（同源）→ Cache First
   const selfOrigin = self.location.origin;
-  if (url.startsWith(selfOrigin) && isStaticAssetRequest(url)) {
+  if (!url.startsWith(selfOrigin)) return;  // 跨域请求不拦截
+
+  // HTML 文档请求（导航）→ Network First，保证每次拿到最新 index.html
+  if (isHtmlDocumentRequest(url, event.request.destination)) {
+    event.respondWith(networkFirstHtmlStrategy(event.request));
+    return;
+  }
+
+  // 其他静态资源（CSS/JS/图/manifest）→ Cache First
+  if (isStaticAssetRequest(url)) {
     event.respondWith(cacheFirstStrategy(event.request));
     return;
   }
 
-  // 其他请求（跨域图片、字体等）：直接走网络，失败则静默
+  // 其他请求：直接走网络，失败则静默
 });
 
 // ============================================================
