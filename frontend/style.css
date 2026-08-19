@@ -580,7 +580,7 @@ body.detail-open {
   animation: detail-slide-up 0.25s ease;
 }
 
-/* 顶部抓取条（可选视觉元素，方便下拉理解） */
+/* 顶部抓取条（小屏才显示，给用户下拉的视觉暗示；大屏改居中弹窗时隐藏） */
 .detail-modal::before {
   content: "";
   display: block;
@@ -595,30 +595,35 @@ body.detail-open {
 /* 关闭按钮：右上角大圆 X，点击区 44x44（关怀版硬要求） */
 .detail-close {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
   width: 44px;
   height: 44px;
   border: none;
   border-radius: 50%;
-  background-color: #f3f4f6;
-  color: #1a3a5c;
+  background-color: #1a3a5c;             /* 深蓝实色背景，强对比 */
+  color: #ffffff;                         /* 白色 ✕ */
   font-size: 22px;
   font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease, transform 0.1s ease;
-  z-index: 2;
+  /* 高 z-index 保证盖在 detail-content / 抓取条之上 */
+  z-index: 10;
+  /* 加阴影让按钮"浮"起来，绝不隐藏 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .detail-close:hover {
-  background-color: #e5e7eb;
+  background-color: #0f2a45;             /* hover：更深的蓝 */
 }
 
 .detail-close:active {
   transform: scale(0.92);
+  background-color: #0a1f33;
 }
 
 .detail-close:focus-visible {
@@ -706,11 +711,12 @@ body.detail-open {
     background-color: #4b5563;
   }
   .detail-close {
-    background-color: #1f2229;
-    color: #f9fafb;
+    background-color: #e8850e;             /* 深色模式：暖橙背景更亮 */
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   }
   .detail-close:hover {
-    background-color: #2d3139;
+    background-color: #d0760c;
   }
   .detail-title {
     color: #f9fafb;
