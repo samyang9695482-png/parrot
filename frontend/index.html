@@ -18,7 +18,7 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦜%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
-  <!-- 顶部品牌区 -->
+  <!-- 顶部品牌区 + 横向栏目导航 -->
   <header class="header">
     <div class="header-inner">
       <div class="brand">
@@ -30,6 +30,8 @@
       </div>
       <div class="date-display" id="dateDisplay"></div>
     </div>
+    <!-- 四个栏目横向导航：全球 | 贵金属 | 股票 | 币圈 -->
+    <nav class="nav-tabs" id="categoryTabs" aria-label="栏目导航"></nav>
   </header>
 
   <!-- 主内容区 -->
@@ -39,21 +41,14 @@
       <p class="loading-text">正在加载今日新闻...</p>
     </div>
     <div id="newsContainer"></div>
-    <div class="bottom-spacer"></div>
+    <!-- 底部品牌信息（替代原下载按钮位置） -->
+    <footer class="brand-footer">
+      <div class="brand-footer-inner">
+        <span class="brand-footer-icon">🦜</span>
+        <span class="brand-footer-text">鹦鹉全球金融早报 · 每日8点，看懂全球金融</span>
+      </div>
+    </footer>
   </main>
-
-  <!-- 底部固定下载按钮 -->
-  <footer class="download-footer">
-    <a
-      id="downloadBtn"
-      href="https://pan.quark.cn/s/your-share-id"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="download-btn"
-    >
-      📦 下载完整数据包
-    </a>
-  </footer>
 
   <!-- 新闻详情弹层（半屏 sheet，关怀版风格） -->
   <div class="detail-overlay" id="detailOverlay" hidden></div>
@@ -77,9 +72,15 @@
     // ✅ Supabase anon publishable key（用户 08-19 提供；严格区分字母 O/l 与数字 0/1）
     const SUPABASE_ANON_KEY = 'sb_publishable_qazOCCYcoQLmsbVnpBl2LQ_DiEUEApx';
 
-    const NEWS_PER_CATEGORY = 2;
+    const NEWS_PER_CATEGORY = 3;            // 首页每栏目显示的标题条数
     // 当日所有新闻缓存：详情页从这里按 idx 取数据，避免 dataset 存大字符串
     let newsDataCache = [];
+    // 按栏目分组的全量新闻（首页/全部列表都从这里取）
+    let newsByCategory = {};
+    // 当前选中的栏目 key，默认"全球"
+    let currentCategory = 'global';
+    // 当前视图模式：'home' = 首页 3 条标题；'all' = 全部列表（标题+摘要）
+    let viewMode = 'home';
     const CATEGORIES = [
       { key: 'global',          name: '🌍 全球',     desc: '全球经济、央行政策、地缘政治' },
       { key: 'precious_metals', name: '💰 贵金属',   desc: '黄金、白银' },
@@ -170,15 +171,20 @@
     }
 
     // ============================================================
-    // 渲染
+    // 渲染：状态机模式
+    //   renderNews  → 拉到数据后分组并初始化状态
+    //   renderTabs  → 顶部 4 个 tab
+    //   renderCurrentView → 根据 currentCategory + viewMode 渲染主体
     // ============================================================
 
     function renderNews(newsList) {
       const container = document.getElementById('newsContainer');
       container.innerHTML = '';
-      newsDataCache = []; // 重置缓存，避免上次遗留
+      newsDataCache = [];
 
       if (!newsList || newsList.length === 0) {
+        // 数据为空也要清空 tabs，避免误点
+        document.getElementById('categoryTabs').innerHTML = '';
         container.innerHTML = `
           <div style="text-align:center;padding:40px 20px;color:#999;font-size:20px;">
             📭 今日暂无更新<br>
@@ -188,61 +194,176 @@
         return;
       }
 
-      const grouped = {};
-      CATEGORIES.forEach(cat => { grouped[cat.key] = []; });
+      // 按栏目分组到 newsByCategory
+      newsByCategory = {};
+      CATEGORIES.forEach(cat => { newsByCategory[cat.key] = []; });
       newsList.forEach(item => {
-        if (grouped[item.category]) {
-          grouped[item.category].push(item);
+        if (newsByCategory[item.category]) {
+          newsByCategory[item.category].push(item);
         }
       });
 
+      renderTabs();
+      renderCurrentView();
+    }
+
+    // 顶部 4 个 tab：选中态加 nav-tab--active
+    function renderTabs() {
+      const bar = document.getElementById('categoryTabs');
+      bar.innerHTML = '';
       CATEGORIES.forEach(cat => {
-        const section = document.createElement('section');
-        section.className = 'category-section';
-        section.innerHTML = `
-          <div class="category-header">
-            <h2 class="category-title">${escapeHtml(cat.name)}</h2>
-            <span class="category-desc">${escapeHtml(cat.desc)}</span>
-          </div>
-        `;
-
-        const items = (grouped[cat.key] || []).slice(0, NEWS_PER_CATEGORY);
-
-        if (items.length === 0) {
-          const placeholder = document.createElement('div');
-          placeholder.className = 'news-card empty-card';
-          placeholder.innerHTML = `<p class="empty-text">暂无更新</p>`;
-          section.appendChild(placeholder);
-        } else {
-          items.forEach(item => {
-            // 把 item 推进缓存，记下它的索引，详情页通过 idx 取数据
-            const idx = newsDataCache.length;
-            newsDataCache.push(item);
-
-            const card = document.createElement('article');
-            card.className = 'news-card news-card--clickable';
-            card.dataset.idx = String(idx);
-            card.setAttribute('role', 'button');
-            card.setAttribute('tabindex', '0');
-            card.innerHTML = `
-              <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
-              <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
-              <span class="news-read-more">查看详情 ›</span>
-            `;
-            // 点击打开详情
-            card.addEventListener('click', () => openDetail(idx));
-            // 键盘回车 / 空格也能打开（无障碍）
-            card.addEventListener('keydown', (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openDetail(idx);
-              }
-            });
-            section.appendChild(card);
-          });
-        }
-        container.appendChild(section);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-tab' + (cat.key === currentCategory ? ' nav-tab--active' : '');
+        btn.textContent = cat.name;
+        btn.setAttribute('aria-pressed', cat.key === currentCategory ? 'true' : 'false');
+        btn.addEventListener('click', () => switchCategory(cat.key));
+        bar.appendChild(btn);
       });
+    }
+
+    // 切换栏目：默认回到 home 模式
+    function switchCategory(key) {
+      if (key === currentCategory && viewMode === 'home') return;
+      currentCategory = key;
+      viewMode = 'home';
+      renderTabs();
+      renderCurrentView();
+      // 切换后滚到顶部，避免停留在原位置
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 渲染当前视图（home 或 all）
+    function renderCurrentView() {
+      const container = document.getElementById('newsContainer');
+      container.innerHTML = '';
+      newsDataCache = []; // 详情缓存按当前视图重建
+
+      const cat = CATEGORIES.find(c => c.key === currentCategory) || CATEGORIES[0];
+      const items = newsByCategory[currentCategory] || [];
+
+      if (viewMode === 'home') {
+        renderHomeView(cat, items);
+      } else {
+        renderAllView(cat, items);
+      }
+    }
+
+    // home 模式：栏目头（标题 + 更多按钮）+ 3 条标题列表
+    function renderHomeView(cat, items) {
+      const container = document.getElementById('newsContainer');
+      const section = document.createElement('section');
+      section.className = 'category-section';
+
+      // 栏目头：左标题 + 右"更多"按钮（仅当条数超过 3 才显示）
+      const header = document.createElement('div');
+      header.className = 'category-header category-header--with-more';
+      header.innerHTML = `
+        <div class="category-header-text">
+          <h2 class="category-title">${escapeHtml(cat.name)}</h2>
+          <span class="category-desc">${escapeHtml(cat.desc)}</span>
+        </div>
+        ${items.length > NEWS_PER_CATEGORY ? `<button class="more-btn" type="button">更多 ›</button>` : ''}
+      `;
+      section.appendChild(header);
+
+      // 绑定更多按钮 → 切到 all 视图
+      const moreBtn = header.querySelector('.more-btn');
+      if (moreBtn) {
+        moreBtn.addEventListener('click', () => {
+          viewMode = 'all';
+          renderCurrentView();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+
+      if (items.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'news-card empty-card';
+        placeholder.innerHTML = `<p class="empty-text">暂无更新</p>`;
+        section.appendChild(placeholder);
+      } else {
+        items.slice(0, NEWS_PER_CATEGORY).forEach(item => {
+          const idx = newsDataCache.length;
+          newsDataCache.push(item);
+          const row = buildTitleRow(item, idx);
+          section.appendChild(row);
+        });
+      }
+      container.appendChild(section);
+    }
+
+    // all 模式：返回栏 + 该栏目全部新闻（标题 + 摘要，可点进详情）
+    function renderAllView(cat, items) {
+      const container = document.getElementById('newsContainer');
+
+      // 返回栏
+      const backBar = document.createElement('div');
+      backBar.className = 'back-bar';
+      backBar.innerHTML = `
+        <button class="back-btn" type="button" aria-label="返回首页">‹ 返回</button>
+        <h2 class="back-bar-title">${escapeHtml(cat.name)} · 全部 ${items.length} 条</h2>
+      `;
+      backBar.querySelector('.back-btn').addEventListener('click', () => {
+        viewMode = 'home';
+        renderCurrentView();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      container.appendChild(backBar);
+
+      // 列表
+      const list = document.createElement('div');
+      list.className = 'all-news-list';
+      if (items.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'news-card empty-card';
+        placeholder.innerHTML = `<p class="empty-text">暂无更新</p>`;
+        list.appendChild(placeholder);
+      } else {
+        items.forEach(item => {
+          const idx = newsDataCache.length;
+          newsDataCache.push(item);
+          const card = document.createElement('article');
+          card.className = 'news-card news-card--clickable';
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.innerHTML = `
+            <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+            <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
+            <span class="news-read-more">查看详情 ›</span>
+          `;
+          card.addEventListener('click', () => openDetail(idx));
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openDetail(idx);
+            }
+          });
+          list.appendChild(card);
+        });
+      }
+      container.appendChild(list);
+    }
+
+    // 构造"标题列表项"（home 模式每条）
+    function buildTitleRow(item, idx) {
+      const row = document.createElement('article');
+      row.className = 'news-list-item';
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      row.innerHTML = `
+        <span class="news-list-bullet" aria-hidden="true">·</span>
+        <h3 class="news-list-title">${escapeHtml(item.title || '无标题')}</h3>
+        <span class="news-list-arrow" aria-hidden="true">›</span>
+      `;
+      row.addEventListener('click', () => openDetail(idx));
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openDetail(idx);
+        }
+      });
+      return row;
     }
 
     // ============================================================
