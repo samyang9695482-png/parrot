@@ -68,47 +68,37 @@ CATEGORY_KEYWORDS = {
     ]
 }
 
-# RSS 源列表（可自行增减）
+# RSS 源列表（已替换为 GitHub Actions 环境下稳定可访问、无需翻墙的源）
 RSS_FEEDS = [
-    # 路透社 - 商业 & 市场
-    {
-        "name": "Reuters Business",
-        "url": "https://feeds.reuters.com/reuters/businessNews",
-        "default_category": None  # 由 AI 自动分类
-    },
-    {
-        "name": "Reuters Markets",
-        "url": "https://feeds.reuters.com/reuters/financialMarketsNews",
-        "default_category": None
-    },
-    # BBC 商业
+    # BBC 商业新闻
     {
         "name": "BBC Business",
         "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "default_category": None  # 由 AI 自动分类
+    },
+    # BBC 国际新闻
+    {
+        "name": "BBC World",
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
         "default_category": None
     },
-    # FT - 市场 & 经济（若被墙可替换为其他源）
+    # The Guardian 国际新闻
     {
-        "name": "FT Markets",
-        "url": "https://www.ft.com/markets?format=rss",
+        "name": "The Guardian World",
+        "url": "https://www.theguardian.com/world/rss",
         "default_category": None
     },
+    # NPR 新闻
     {
-        "name": "FT Global Economy",
-        "url": "https://www.ft.com/global-economy?format=rss",
-        "default_category": "global"
-    },
-    # CNBC 财经
-    {
-        "name": "CNBC Finance",
-        "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664",
+        "name": "NPR News",
+        "url": "https://feeds.npr.org/1001/rss.xml",
         "default_category": None
     },
-    # 可选：CoinDesk（币圈，RSS 可能变化，失效请删除）
+    # Al Jazeera 综合新闻
     {
-        "name": "CoinDesk",
-        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-        "default_category": "crypto"
+        "name": "Al Jazeera",
+        "url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "default_category": None
     }
 ]
 

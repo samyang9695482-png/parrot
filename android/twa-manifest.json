@@ -1,0 +1,70 @@
+{
+  "_comment": "Bubblewrap 配置文件（Google 官方 TWA 打包工具）。运行 `bubblewrap init --manifest=https://peaceful-panda-50f9c5.netlify.app/manifest.json` 后生成的 twa-manifest.json 可直接用此文件覆盖，保证图标/名称/权限按你的要求配置。手动构建时可直接用 `bubblewrap build` 生成 APK。",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "backgroundColor": "#ffffff",
+  "themeColor": "#1a3a5c",
+  "display": "standalone",
+  "displayOptions": {
+    "default": {
+      "statusBarColor": "#1a3a5c",
+      "statusBarColorDark": "#0f2a45",
+      "navigationBarColor": "#ffffff",
+      "navigationBarColorDark": "#1a1d23",
+      "navigationBarDividerColor": "#e5e7eb",
+      "navigationBarDividerColorDark": "#374151"
+    }
+  },
+  "enableNotifications": false,
+  "enableSiteSettingsShortcut": false,
+  "fallbackType": "customtabs",
+  "fullScopeUrl": "https://peaceful-panda-50f9c5.netlify.app/",
+  "host": "peaceful-panda-50f9c5.netlify.app",
+  "iconUrl": "https://peaceful-panda-50f9c5.netlify.app/img/yinwu.png",
+  "maskableIconUrl": "https://peaceful-panda-50f9c5.netlify.app/img/yinwu.png",
+  "isChromeOSOnly": false,
+  "launcherName": "鹦鹉全球金融早报",
+  "name": "鹦鹉全球金融早报",
+  "shortName": "鹦鹉早报",
+  "packageId": "cn.yinwu.finance.morning.paper",
+  "serviceAccountJsonFile": "keystore/play-service-account.json",
+  "signing": {
+    "keyAlias": "yinwu",
+    "keyPassword": "INJECT_AT_BUILD_OR_USE_KEYSTORE_INFO_JSON",
+    "keystoreFile": "keystore/android-keystore.jks",
+    "keystorePassword": "INJECT_AT_BUILD_OR_USE_KEYSTORE_INFO_JSON"
+  },
+  "startUrl": "https://peaceful-panda-50f9c5.netlify.app/index.html",
+  "webManifestUrl": "https://peaceful-panda-50f9c5.netlify.app/manifest.json",
+  "generator": "manual",
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    },
+    "firstRunFlag": {
+      "enabled": true
+    }
+  },
+  "removeLegacyVpnCode": true,
+  "removeServiceWorkerCacheOnUpgrade": false,
+  "splashScreenFadeOutDurationMillis": 300,
+  "splashScreenFadeInDurationMillis": 0,
+  "splashScreenBackgroundColor": "#ffffff",
+  "splashScreenTheme": "bubble_splash",
+  "splashScreenScaleType": "FIT_CENTER",
+  "supportDarkTheme": true,
+  "supportChromeOS": true,
+  "useTrustedWebColors": true,
+  "permissions": [],
+  "_comment_permissions": "留空数组 = 不申请任何手机权限（通讯录/相机/位置/存储/麦克风 全禁用），完全符合用户要求",
+  "shareTarget": null,
+  "assetLinks": {
+    "_comment": "上传到 https://peaceful-panda-50f9c5.netlify.app/.well-known/assetlinks.json 用于 TWA 去地址栏、全屏显示。如果不做这个，APK 打开后顶部会有灰色 Chrome 地址栏。内容详见 well-known-assetlinks.json。"
+  }
+}

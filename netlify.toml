@@ -1,0 +1,62 @@
+# Netlify 部署配置
+# 文档：https://docs.netlify.com/configure-builds/file-based-configuration/
+
+# ============================================================
+# 构建配置
+# ============================================================
+[build]
+  # 发布目录：前端静态文件在 frontend/ 下
+  publish = "frontend"
+
+  # 无构建步骤（纯静态 PWA，没有 build 命令）
+  command = ""
+
+# ============================================================
+# 重定向规则
+# ============================================================
+
+# 把根目录 /img/* 请求映射到 frontend/img/*
+# 这样无论 index.html / manifest.json 里写的是 /img/yinwu.png 还是 img/yinwu.png，
+# Netlify 都能正确找到 frontend/img/yinwu.png
+[[redirects]]
+  from = "/img/*"
+  to = "/img/:splat"
+  status = 200
+
+# SPA 回退：所有未匹配的路径回退到 index.html（PWA 必需）
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  # 不重定向已存在的静态资源（css/js/png/json/svg 等）
+  force = false
+
+# ============================================================
+# HTTP 头
+# ============================================================
+
+# PWA manifest 和 service worker 必须用正确的 MIME 类型
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+    Cache-Control = "no-cache"
+
+# PWA 图标
+[[headers]]
+  for = "/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+# TWA 资产证明
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "public, max-age=86400"

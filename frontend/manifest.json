@@ -13,19 +13,19 @@
   "categories": ["news", "finance", "lifestyle"],
   "icons": [
     {
-      "src": "img/yinwu.png",
+      "src": "/img/yinwu.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "img/yinwu.png",
+      "src": "/img/yinwu.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "img/yinwu.png",
+      "src": "/img/yinwu.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any"
