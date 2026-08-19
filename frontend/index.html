@@ -295,6 +295,11 @@
 
     // all 模式：返回栏 + 该栏目全部新闻（标题 + 摘要，可点进详情）
     function renderAllView(cat, items) {
+      // 诊断日志：让用户能在控制台直观看到该栏目到底有多少条数据
+      // 如果这里打印 N 条，但页面只显示 3 条，说明 CSS/HTML 出问题
+      // 如果这里打印 3 条，说明数据库 / fetchTodayNews 拿到的就只有 3 条
+      console.log(`📋 renderAllView [${cat.key}] 实际数据条数: ${items.length}`);
+
       const container = document.getElementById('newsContainer');
 
       // 返回栏

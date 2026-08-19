@@ -9,7 +9,7 @@
 // 缓存名：更新版本号可触发客户端重新缓存
 // ⚠️ 每次修改了 index.html / style.css 后，建议把这个版本号也改一下
 //    （例如 v1.1.0 → v1.1.1），强制浏览器清旧缓存拉新版本
-const CACHE_VERSION = 'v1.3.0';
+const CACHE_VERSION = 'v1.4.0';
 const STATIC_CACHE = `parrot-static-${CACHE_VERSION}`;
 const NEWS_CACHE = 'parrot-news-cache';    // 与前端 JS 中保持一致
 

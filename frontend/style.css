@@ -580,6 +580,16 @@ body.detail-open {
   animation: detail-slide-up 0.25s ease;
 }
 
+/* 🔧 修复 Bug：让 hidden 属性在弹层上真正生效
+   原因：.detail-modal 的 display:flex 优先级 (0,1,0) 与 UA 的 [hidden]{display:none} 相同，
+   作者 CSS 后定义会覆盖 UA 规则，导致 HTML 的 hidden 属性失效 → 弹层默认可见、关不掉。
+   这里显式加 [hidden] 选择器，并提升优先级到 (0,2,0)，且用 !important 兜底，确保
+   不管后续怎么改 .detail-modal 的 display，hidden 都能把它隐藏。 */
+.detail-modal[hidden],
+.detail-overlay[hidden] {
+  display: none !important;
+}
+
 /* 顶部抓取条（小屏才显示，给用户下拉的视觉暗示；大屏改居中弹窗时隐藏） */
 .detail-modal::before {
   content: "";
