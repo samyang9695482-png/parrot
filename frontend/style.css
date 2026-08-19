@@ -283,6 +283,151 @@ body.detail-open {
   background-color: #f3f4f6;
 }
 
+/* ============================================================
+   PWA 安装提示条（导航栏下方，非模态，可关闭）
+   - 浅暖橙背景，与品牌色协调
+   - 大字、易点击，符合适老化要求
+   ============================================================ */
+.install-banner {
+  max-width: 720px;
+  margin: 12px auto 0;
+  background-color: #fff8ed;
+  border: 1px solid #fde4c4;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(232, 133, 14, 0.08);
+  animation: install-banner-slide-down 0.3s ease;
+}
+
+/* 显式让 [hidden] 生效（防止 display:flex 覆盖 UA 规则） */
+.install-banner[hidden] {
+  display: none !important;
+}
+
+.install-banner-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.install-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.install-banner-text strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.3;
+}
+
+.install-banner-hint {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.install-banner-btn {
+  flex-shrink: 0;
+  border: none;
+  background-color: #e8850e;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.install-banner-btn:active {
+  background-color: #d0760c;
+  transform: scale(0.96);
+}
+
+.install-banner-btn:focus-visible {
+  outline: 3px solid #1a3a5c;
+  outline-offset: 2px;
+}
+
+.install-banner-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.install-banner-close:active {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+@keyframes install-banner-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 小屏：缩小图标 + 紧凑布局 */
+@media (max-width: 380px) {
+  .install-banner {
+    padding: 12px 12px;
+    gap: 8px;
+  }
+  .install-banner-icon {
+    font-size: 22px;
+  }
+  .install-banner-text strong {
+    font-size: 16px;
+  }
+  .install-banner-hint {
+    font-size: 12px;
+  }
+  .install-banner-btn {
+    font-size: 14px;
+    padding: 8px 14px;
+  }
+}
+
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+  .install-banner {
+    background-color: #2a1d10;
+    border-color: #4a2f15;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .install-banner-text strong {
+    color: #f9fafb;
+  }
+  .install-banner-hint {
+    color: #9ca3af;
+  }
+  .install-banner-close {
+    color: #6b7280;
+  }
+  .install-banner-close:active {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
 /* ------ 栏目头（含"更多"按钮的版本） ------ */
 .category-header--with-more {
   display: flex;

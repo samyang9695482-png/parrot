@@ -13,9 +13,12 @@
   <!-- 样式表 -->
   <link rel="stylesheet" href="./style.css" />
 
-  <!-- 图标 -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦜%3C/text%3E%3C/svg%3E" />
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦜%3C/text%3E%3C/svg%3E" />
+  <!-- 图标：鹦鹉 LOGO（PNG 文件） -->
+  <link rel="icon" type="image/png" href="./img/yinwu.png" />
+  <link rel="apple-touch-icon" href="./img/yinwu.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="./img/yinwu.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="./img/yinwu.png" />
+  <link rel="shortcut icon" href="./img/yinwu.png" />
 </head>
 <body>
   <!-- 顶部品牌区 + 横向栏目导航 -->
@@ -33,6 +36,17 @@
     <!-- 四个栏目横向导航：全球 | 贵金属 | 股票 | 币圈 -->
     <nav class="nav-tabs" id="categoryTabs" aria-label="栏目导航"></nav>
   </header>
+
+  <!-- PWA 安装提示条（导航栏下方，非模态，可关闭） -->
+  <div class="install-banner" id="installBanner" hidden>
+    <span class="install-banner-icon" aria-hidden="true">📥</span>
+    <div class="install-banner-text">
+      <strong>添加到主屏幕</strong>
+      <span class="install-banner-hint" id="installHint">像 App 一样打开，更方便</span>
+    </div>
+    <button class="install-banner-btn" id="installBtn" type="button">安装</button>
+    <button class="install-banner-close" id="installClose" type="button" aria-label="关闭提示">✕</button>
+  </div>
 
   <!-- 主内容区 -->
   <main class="main-content">
@@ -471,6 +485,85 @@
         closeDetail();
       }
     });
+
+    // ============================================================
+    // PWA 安装提示条逻辑
+    //   - 桌面 Chrome/Edge/Android Chrome：beforeinstallprompt 事件触发后显示
+    //   - iOS Safari：不支持 beforeinstallprompt，但能手动添加到主屏，
+    //     给 iOS 用户也显示一次提示，引导他们用分享按钮添加
+    //   - 已经是 standalone 模式（已安装并打开）→ 不显示
+    //   - 用户关闭后用 localStorage 记录，不再显示
+    // ============================================================
+
+    const INSTALL_DISMISS_KEY = 'parrot_install_dismissed_v1';
+    let deferredInstallPrompt = null;     // 缓存 beforeinstallprompt 事件对象
+
+    function isStandaloneMode() {
+      // iOS Safari 用 window.navigator.standalone
+      // 桌面 PWA 用 (display-mode: standalone) 媒体查询
+      return (window.navigator.standalone === true) ||
+             window.matchMedia('(display-mode: standalone)').matches;
+    }
+
+    function isIOSSafari() {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iphone|ipad|ipod/i.test(ua);
+      const isWebkit = /safari/i.test(ua) && !/crios|fxios/i.test(ua);
+      return isIOS && isWebkit;
+    }
+
+    function showInstallBanner() {
+      if (isStandaloneMode()) return;                          // 已安装则不显示
+      if (localStorage.getItem(INSTALL_DISMISS_KEY) === '1') return; // 已关闭则不显示
+      document.getElementById('installBanner').hidden = false;
+    }
+
+    function hideInstallBanner() {
+      document.getElementById('installBanner').hidden = true;
+    }
+
+    function dismissInstallForever() {
+      hideInstallBanner();
+      try { localStorage.setItem(INSTALL_DISMISS_KEY, '1'); } catch (e) {}
+    }
+
+    // 桌面 Chrome/Edge/Android：捕获 beforeinstallprompt，阻止默认弹窗
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      showInstallBanner();
+    });
+
+    // 安装按钮：调缓存的 prompt()，根据用户选择决定是否永久隐藏
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        console.log('PWA 安装结果:', choice.outcome);
+        deferredInstallPrompt = null;
+        hideInstallBanner();
+        if (choice.outcome === 'accepted') dismissInstallForever();
+      } else if (isIOSSafari()) {
+        // iOS 不支持 prompt() API，给用户文字指引
+        alert('请按以下步骤添加到主屏幕：\n\n1. 点击浏览器底部"分享"图标（方框向上箭头）\n2. 在弹出菜单中选择"添加到主屏幕"\n3. 点击"添加"完成');
+        dismissInstallForever();
+      }
+    });
+
+    // 关闭按钮：永久隐藏（localStorage 记录）
+    document.getElementById('installClose').addEventListener('click', () => {
+      dismissInstallForever();
+    });
+
+    // iOS Safari 没有 beforeinstallprompt 事件，给个延迟显示
+    if (isIOSSafari()) {
+      // 改文案：iOS 没有"安装"按钮概念，按钮文字改为"了解"
+      setTimeout(() => {
+        const btn = document.getElementById('installBtn');
+        if (btn) btn.textContent = '了解';
+        showInstallBanner();
+      }, 1500);
+    }
 
     main();
   </script>
