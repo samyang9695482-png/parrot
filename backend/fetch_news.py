@@ -121,15 +121,58 @@ RSS_FEEDS = [
     },
 
     # ============================================================
-    # 二、贵金属专属源（2 个）→ 喂给 precious_metals 栏目
+    # 二、贵金属专属源（7 个，优先 2024/2025 稳定存活的 URL）
+    #   - default_category 全部设为 precious_metals
+    #   - 即使 AI 没正确分类，兜底也归贵金属，避免被误分到 global
     # ============================================================
-    # Kitco 黄金新闻（全球最大贵金属资讯网）
+    # 1) Kitco 官方黄金新闻（全球最大贵金属资讯网）
     {
         "name": "Kitco Gold",
         "url": "https://www.kitco.com/news/rss",
         "default_category": "precious_metals"
     },
-    # Mining.com 贵金属与矿业新闻
+    # 2) Kitco Gold - RSSHub 备用源（当官方 RSS 在 Actions 环境抓不到时，RSSHub 走公网入口）
+    #    建议保留本源作为主源的补充，二者内容重合度高、但总有一个活
+    {
+        "name": "Kitco Gold (RSSHub)",
+        "url": "https://rsshub.app/kitco/gold",
+        "default_category": "precious_metals"
+    },
+    # 3) Mining.com 全站 Feed（更稳定）+ 条目级贵金属关键词过滤（避开煤/铜/铁矿）
+    #    - 原来用 precious-metals/feed 分类页有时 301 或 0 条；全站 feed 一定有内容
+    #    - entry_keywords 只保留与金/银/铂金相关的条目
+    {
+        "name": "Mining.com (Gold/Silver Filter)",
+        "url": "https://www.mining.com/feed/",
+        "default_category": "precious_metals",
+        "entry_keywords": [
+            "gold", "黄金", "silver", "白银", "贵金属", "precious", "金价", "银价",
+            "铂", "铂金", "钯", "钯金", "bullion", "金条", "银条", "金币", "comex",
+            "kitco", "伦敦金", "伦敦银", "现货金", "现货银", "金矿", "银矿",
+            "黄金etf", "白银etf", "黄金期货", "白银期货", "央行购金", "避险资产",
+            "gold price", "silver price", "platinum", "palladium"
+        ],
+        "entry_keywords_min_hit": 1
+    },
+    # 4) OilPrice.com 金属频道（覆盖贵金属 + 大宗商品 + 能源）
+    {
+        "name": "OilPrice.com Metals",
+        "url": "https://oilprice.com/Metals/feed/rss.html",
+        "default_category": "precious_metals"
+    },
+    # 5) Barchart.com - Darin Newsom 贵金属分析师专栏（专业深度分析）
+    {
+        "name": "Barchart Darin Newsom Metals",
+        "url": "https://stage.barchart.com/news/authors/45/Darin%20Newsom/rss",
+        "default_category": "precious_metals"
+    },
+    # 6) Kaiser Research Online - 贵金属与矿业研究
+    {
+        "name": "Kaiser Research Online Metals",
+        "url": "https://secure.kaiserresearch.com/g19/RSS.asp",
+        "default_category": "precious_metals"
+    },
+    # 7) Mining.com 贵金属分类页（保留，与全站 feed 过滤版作为双重保险）
     {
         "name": "Mining.com Precious Metals",
         "url": "https://www.mining.com/precious-metals/feed/",
@@ -257,10 +300,18 @@ def fallback_classify(title: str, summary: str) -> str:
 # ============================================================
 
 def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
-    """抓取单个 RSS，返回统一格式的新闻列表（未去重、未处理）"""
+    """抓取单个 RSS，返回统一格式的新闻列表（未去重、未处理）
+
+    支持 feed_cfg 里的可选字段：
+      - entry_keywords: List[str]  仅保留「标题或摘要中命中任一关键词」的条目
+                                  关键词不区分大小写；空列表或省略则不做过滤
+      - entry_keywords_min_hit: int  至少命中几个关键词才算数（默认 1）
+    """
     name = feed_cfg["name"]
     url = feed_cfg["url"]
     default_cat = feed_cfg.get("default_category")
+    entry_keywords = [k.lower() for k in (feed_cfg.get("entry_keywords") or [])]
+    min_hit = max(int(feed_cfg.get("entry_keywords_min_hit") or 1), 1)
 
     # 连续失败自动屏蔽：超过阈值则直接跳过，节省时间与 AI 调用费用
     fails = FAIL_COUNTER.get(name, 0)
@@ -269,6 +320,8 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
         return []
 
     log(f"抓取 RSS: {name} ({url})")
+    if entry_keywords:
+        log(f"  → 条目过滤关键词：{entry_keywords[:8]} ...（任一命中保留，至少需命中 {min_hit} 个）")
     raw_entries = []
     try:
         parsed = feedparser.parse(url)
@@ -279,6 +332,14 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
             summary = clean_text(entry.get("summary", "") or entry.get("description", ""))
             if not title:
                 continue
+
+            # 条目级关键词过滤（用于综合站点 feed 中只保留贵金属相关内容）
+            if entry_keywords:
+                haystack = f"{title} {summary}".lower()
+                hit = sum(1 for kw in entry_keywords if kw in haystack)
+                if hit < min_hit:
+                    continue  # 该条与贵金属无关，直接丢弃
+
             link = entry.get("link", "")
             published = entry.get("published", "") or entry.get("updated", "")
             raw_entries.append({
