@@ -291,8 +291,8 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // 渲染当前视图（home 或 all）
-    // 按日期分组：每个日期先渲染『8月20日 周四（今日）』标题，再渲染该日的栏目内容
+    // 渲染当前视图
+    // 按日期分组：每个日期先渲染『8月20日 周四（今日）』标题，再渲染该日该栏目的【全部】新闻
     function renderCurrentView() {
       const container = document.getElementById('newsContainer');
       container.innerHTML = '';
@@ -300,23 +300,6 @@
 
       const cache = window.__newsByDate || { byDate: {}, dateOrder: [] };
       const cat = CATEGORIES.find(c => c.key === currentCategory) || CATEGORIES[0];
-
-      if (viewMode === 'all') {
-        // 全部列表：加顶部返回栏，每个日期再渲染该栏目的全部新闻（标题+摘要）
-        const backBar = document.createElement('div');
-        backBar.className = 'back-bar';
-        const totalItems = (newsByCategory[currentCategory] || []).length;
-        backBar.innerHTML = `
-          <button class="back-btn" type="button" aria-label="返回首页">‹ 返回</button>
-          <h2 class="back-bar-title">${escapeHtml(cat.name)} · 全部 ${totalItems} 条</h2>
-        `;
-        backBar.querySelector('.back-btn').addEventListener('click', () => {
-          viewMode = 'home';
-          renderCurrentView();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-        container.appendChild(backBar);
-      }
 
       // 没有任何日期数据的兜底（Tab 切换到某栏目但近 3 天内一条都没有）
       if (cache.dateOrder.length === 0) {
@@ -339,12 +322,9 @@
         const dateH = document.createElement('div');
         dateH.className = 'date-header';
         const title = formatDateGroupTitle(dateStr);
-        const catCountSpan = viewMode === 'home'
-          ? `${Math.min(items.length, NEWS_PER_CATEGORY)}/${items.length} 条`
-          : `${items.length} 条`;
         dateH.innerHTML = `
           <h2 class="date-header-title">${escapeHtml(title)}</h2>
-          <span class="date-header-count">${escapeHtml(cat.name)} · ${catCountSpan}</span>
+          <span class="date-header-count">${escapeHtml(cat.name)} · ${items.length} 条</span>
         `;
         container.appendChild(dateH);
 
@@ -352,71 +332,37 @@
         const section = document.createElement('section');
         section.className = 'category-section';
 
-        // home 模式：加栏目头 + "更多"按钮（仅该日期的条数超 NEWS_PER_CATEGORY 时显示）
-        if (viewMode === 'home') {
-          const header = document.createElement('div');
-          header.className = 'category-header category-header--with-more';
-          header.innerHTML = `
-            <div class="category-header-text">
-              <h3 class="category-title">${escapeHtml(cat.name)}</h3>
-              <span class="category-desc">${escapeHtml(cat.desc)}</span>
-            </div>
-            ${items.length > NEWS_PER_CATEGORY ? `<button class="more-btn" type="button">更多 ›</button>` : ''}
-          `;
-          section.appendChild(header);
-          const moreBtn = header.querySelector('.more-btn');
-          if (moreBtn) {
-            moreBtn.addEventListener('click', () => {
-              viewMode = 'all';
-              renderCurrentView();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-          }
-        }
+        // 栏目头（仅展示栏目名 + 描述，不再有"更多"按钮）
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `
+          <div class="category-header-text">
+            <h3 class="category-title">${escapeHtml(cat.name)}</h3>
+            <span class="category-desc">${escapeHtml(cat.desc)}</span>
+          </div>
+        `;
+        section.appendChild(header);
 
-        if (viewMode === 'home') {
-          // ---------- home 视图：显示前 3 条标题 ----------
-          items.slice(0, NEWS_PER_CATEGORY).forEach(item => {
-            const idx = newsDataCache.length;
-            newsDataCache.push(item);
-            section.appendChild(buildTitleRow(item, idx));
+        // 渲染该日期、该栏目的【全部】新闻（标题+摘要卡片，可点进详情）
+        console.log(`📋 renderCurrentView [${cat.key}] [${dateStr}] 条数: ${items.length}`);
+        items.forEach(item => {
+          const idx = newsDataCache.length;
+          newsDataCache.push(item);
+          const card = document.createElement('article');
+          card.className = 'news-card news-card--clickable';
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.innerHTML = `
+            <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+            <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
+            <span class="news-read-more">查看详情 ›</span>
+          `;
+          card.addEventListener('click', () => openDetail(idx));
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(idx); }
           });
-          // 如果该栏目当天为 0 条（上面过滤后到不了这里，但兜底保留）
-          if (items.slice(0, NEWS_PER_CATEGORY).length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'news-card empty-card';
-            empty.innerHTML = `<p class="empty-text">该日期暂无更新</p>`;
-            section.appendChild(empty);
-          }
-        } else {
-          // ---------- all 视图：显示该日期、该栏目的所有新闻（标题+摘要卡片）----------
-          console.log(`📋 renderAllView [${cat.key}] [${dateStr}] 条数: ${items.length}`);
-          if (items.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'news-card empty-card';
-            empty.innerHTML = `<p class="empty-text">该日期暂无更新</p>`;
-            section.appendChild(empty);
-          } else {
-            items.forEach(item => {
-              const idx = newsDataCache.length;
-              newsDataCache.push(item);
-              const card = document.createElement('article');
-              card.className = 'news-card news-card--clickable';
-              card.setAttribute('role', 'button');
-              card.setAttribute('tabindex', '0');
-              card.innerHTML = `
-                <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
-                <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
-                <span class="news-read-more">查看详情 ›</span>
-              `;
-              card.addEventListener('click', () => openDetail(idx));
-              card.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(idx); }
-              });
-              section.appendChild(card);
-            });
-          }
-        }
+          section.appendChild(card);
+        });
 
         container.appendChild(section);
       });
@@ -428,27 +374,6 @@
         placeholder.innerHTML = `<p class="empty-text">该栏目最近 3 天暂无更新</p>`;
         container.appendChild(placeholder);
       }
-    }
-
-    // 构造"标题列表项"（home 模式每条）
-    function buildTitleRow(item, idx) {
-      const row = document.createElement('article');
-      row.className = 'news-list-item';
-      row.setAttribute('role', 'button');
-      row.setAttribute('tabindex', '0');
-      row.innerHTML = `
-        <span class="news-list-bullet" aria-hidden="true">·</span>
-        <h3 class="news-list-title">${escapeHtml(item.title || '无标题')}</h3>
-        <span class="news-list-arrow" aria-hidden="true">›</span>
-      `;
-      row.addEventListener('click', () => openDetail(idx));
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          openDetail(idx);
-        }
-      });
-      return row;
     }
 
     // ============================================================
