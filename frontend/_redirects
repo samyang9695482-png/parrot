@@ -1,6 +1,0 @@
-# 静态文件直接放行
-/img/* /img/:splat 200
-/.well-known/* /.well-known/:splat 200
-
-# SPA 回退：所有其他请求返回 index.html（状态码 200）
-/* /index.html 200
