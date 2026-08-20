@@ -1,0 +1,931 @@
+/* ============================================================
+   鹦鹉全球金融早报 - 关怀版样式（参考腾讯新闻关怀版）
+   主色调：深蓝 #1a3a5c  |  辅助色：暖橙 #e8850e
+   层次：白底页面 → 浅灰栏目卡 (#f5f6fa) → 白底新闻条目
+   正文字号：18px  |  标题字号：24px  |  行高：1.8
+   ============================================================ */
+
+/* ------ 全局重置 ------ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* 允许用户手动放大，不强制锁定缩放，方便中老年用户 */
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+               "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background-color: #ffffff;           /* 页面白底，让浅灰栏目卡凸显 */
+  color: #1a3a5c;                      /* 深蓝正文，对比度 ≥ 4.5:1 */
+  line-height: 1.8;
+  font-size: 18px;                     /* 正文 18px */
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 详情弹层打开时锁背景滚动 */
+body.detail-open {
+  overflow: hidden;
+}
+
+/* ------ 顶部品牌区 ------ */
+.header {
+  background: linear-gradient(135deg, #1a3a5c 0%, #2a5080 100%);
+  color: #ffffff;
+  padding: 24px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(26, 58, 92, 0.15);
+}
+
+.header-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-icon {
+  font-size: 48px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand-title {
+  font-size: 32px;                   /* 大标题 32px 加粗 */
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.brand-subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.4;
+}
+
+.date-display {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 16px;
+  border-radius: 10px;
+  align-self: flex-start;
+  font-weight: 500;
+}
+
+/* ------ 主内容区 ------ */
+.main-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+/* ------ 加载状态 ------ */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  gap: 20px;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(26, 58, 92, 0.15);
+  border-top-color: #1a3a5c;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 22px;
+  color: #1a3a5c;
+  font-weight: 500;
+}
+
+/* ------ 日期分组标题（每个日期块的大标题：『8月20日 周四（今日）』） ------ */
+.date-header {
+  max-width: 720px;
+  margin: 0 auto 10px;
+  padding: 0 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.date-header-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.3;
+  margin: 0;
+  padding: 0;
+}
+
+.date-header-count {
+  font-size: 14px;
+  color: #e8850e;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background-color: #fff8ed;
+  border-radius: 999px;
+  border: 1px solid #fde4c4;
+}
+
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+  .date-header-title {
+    color: #f9fafb;
+  }
+  .date-header-count {
+    background-color: #2a1d10;
+    color: #f9a02e;
+    border-color: #4a2f15;
+  }
+}
+
+/* ------ 栏目区块（整栏目浅灰容器卡，关怀版核心结构） ------ */
+.category-section {
+  background-color: #f5f6fa;          /* 浅灰背景，把整栏目包成一个卡 */
+  border-radius: 16px;
+  padding: 16px;                      /* 内边距 16px */
+  margin-bottom: 28px;                /* 日期之间间距再大一点 */
+}
+
+.category-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 0 4px;
+}
+
+.category-title {
+  font-size: 24px;                   /* 栏目标题 24px 加粗 */
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.4;
+}
+
+.category-desc {
+  font-size: 16px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+/* ------ 新闻卡片（白底条目，嵌在浅灰栏目卡里） ------ */
+.news-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.news-card:last-child {
+  margin-bottom: 0;                  /* 最后一条不留多余间距 */
+}
+
+/* 可点击的新闻卡片：明显指针 + 悬浮反馈 */
+.news-card--clickable {
+  cursor: pointer;
+}
+
+.news-card--clickable:hover {
+  box-shadow: 0 2px 10px rgba(26, 58, 92, 0.12);
+}
+
+.news-card--clickable:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.news-card--clickable:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+.news-title {
+  font-size: 24px;                   /* 新闻标题 24px 加粗 */
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.news-summary {
+  font-size: 18px;                   /* 摘要正文 18px */
+  color: #4b5563;
+  line-height: 1.8;
+  margin-bottom: 10px;
+}
+
+/* 卡片底部"查看详情 ›"引导 */
+.news-read-more {
+  display: inline-block;
+  font-size: 16px;
+  color: #e8850e;                     /* 暖橙高亮 */
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.news-source {
+  font-size: 16px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+/* ------ 暂无更新占位 ------ */
+.empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  border: 2px dashed rgba(26, 58, 92, 0.15);
+  background-color: #fafbfc;
+  box-shadow: none;
+}
+
+.empty-text {
+  font-size: 22px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* ------ 顶部横向栏目导航 ------ */
+.nav-tabs {
+  max-width: 720px;
+  margin: 16px auto 0;
+  display: flex;
+  gap: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.nav-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 18px;
+  font-weight: 500;
+  padding: 12px 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  line-height: 1.3;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-tab:active {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.nav-tab--active {
+  background-color: #ffffff;
+  color: #1a3a5c;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.nav-tab--active:active {
+  background-color: #f3f4f6;
+}
+
+/* ============================================================
+   PWA 安装提示条（导航栏下方，非模态，可关闭）
+   - 浅暖橙背景，与品牌色协调
+   - 大字、易点击，符合适老化要求
+   ============================================================ */
+.install-banner {
+  max-width: 720px;
+  margin: 12px auto 0;
+  background-color: #fff8ed;
+  border: 1px solid #fde4c4;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(232, 133, 14, 0.08);
+  animation: install-banner-slide-down 0.3s ease;
+}
+
+/* 显式让 [hidden] 生效（防止 display:flex 覆盖 UA 规则） */
+.install-banner[hidden] {
+  display: none !important;
+}
+
+.install-banner-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.install-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.install-banner-text strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.3;
+}
+
+.install-banner-hint {
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.install-banner-btn {
+  flex-shrink: 0;
+  border: none;
+  background-color: #e8850e;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.install-banner-btn:active {
+  background-color: #d0760c;
+  transform: scale(0.96);
+}
+
+.install-banner-btn:focus-visible {
+  outline: 3px solid #1a3a5c;
+  outline-offset: 2px;
+}
+
+.install-banner-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.install-banner-close:active {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+@keyframes install-banner-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 小屏：缩小图标 + 紧凑布局 */
+@media (max-width: 380px) {
+  .install-banner {
+    padding: 12px 12px;
+    gap: 8px;
+  }
+  .install-banner-icon {
+    font-size: 22px;
+  }
+  .install-banner-text strong {
+    font-size: 16px;
+  }
+  .install-banner-hint {
+    font-size: 12px;
+  }
+  .install-banner-btn {
+    font-size: 14px;
+    padding: 8px 14px;
+  }
+}
+
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+  .install-banner {
+    background-color: #2a1d10;
+    border-color: #4a2f15;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .install-banner-text strong {
+    color: #f9fafb;
+  }
+  .install-banner-hint {
+    color: #9ca3af;
+  }
+  .install-banner-close {
+    color: #6b7280;
+  }
+  .install-banner-close:active {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* ------ 栏目头（含"更多"按钮的版本） ------ */
+.category-header--with-more {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.category-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.more-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #e8850e;                       /* 暖橙高亮 */
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.more-btn:active {
+  background-color: rgba(232, 133, 14, 0.1);
+}
+
+.more-btn:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+/* ------ 首页"标题列表项"（home 模式：只显示标题） ------ */
+.news-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.news-list-item:last-child {
+  margin-bottom: 0;
+}
+
+.news-list-item:hover {
+  box-shadow: 0 2px 10px rgba(26, 58, 92, 0.12);
+}
+
+.news-list-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.news-list-item:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+.news-list-bullet {
+  color: #1a3a5c;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.news-list-title {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 500;
+  color: #1a3a5c;
+  line-height: 1.5;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.news-list-arrow {
+  color: #9ca3af;
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ------ all 模式：返回栏 ------ */
+.back-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 8px 4px;
+}
+
+.back-btn {
+  border: none;
+  background: transparent;
+  color: #e8850e;
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back-btn:active {
+  background-color: rgba(232, 133, 14, 0.1);
+}
+
+.back-btn:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+.back-bar-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ------ 底部品牌信息（替代原下载按钮） ------ */
+.brand-footer {
+  margin-top: 40px;
+  padding: 24px 0;
+  text-align: center;
+  border-top: 1px solid #e5e7eb;
+}
+
+.brand-footer-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #9ca3af;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.brand-footer-icon {
+  font-size: 20px;
+}
+
+.brand-footer-text {
+  letter-spacing: 0.5px;
+}
+
+/* ------ 响应式：大屏适配 ------ */
+@media (min-width: 768px) {
+  .main-content {
+    padding: 32px 24px;
+  }
+  .header {
+    padding: 28px 24px;
+  }
+  .header-inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .date-display {
+    align-self: center;
+  }
+}
+
+/* ------ 响应式：小屏适配（<= 380px） ------ */
+/* 关怀版不在小屏降字号，保持 18/24 下限，只调整布局间距 */
+@media (max-width: 380px) {
+  .brand-title {
+    font-size: 26px;
+  }
+  .brand-icon {
+    font-size: 36px;
+  }
+  .main-content {
+    padding: 16px 12px;
+  }
+  .category-section {
+    padding: 12px;
+  }
+  .news-card {
+    padding: 14px;
+  }
+  .news-list-item {
+    padding: 14px;
+  }
+  .nav-tab {
+    font-size: 16px;
+    padding: 10px 2px;
+  }
+}
+
+/* ------ 深色模式适配（可选，iOS 自动） ------ */
+@media (prefers-color-scheme: dark) {
+  /* 适老化深色模式保持较高对比度 */
+  body {
+    background-color: #1a1d23;
+    color: #e5e7eb;
+  }
+  /* 栏目卡：从浅灰变成深灰，保持层次感 */
+  .category-section {
+    background-color: #262a33;
+  }
+  .news-card,
+  .news-list-item {
+    background-color: #1f2229;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .news-title,
+  .news-list-title,
+  .news-list-bullet {
+    color: #f9fafb;
+  }
+  .news-summary {
+    color: #d1d5db;
+  }
+  .category-title,
+  .back-bar-title {
+    color: #f9fafb;
+  }
+  .category-desc {
+    color: #9ca3af;
+  }
+  .news-list-arrow {
+    color: #6b7280;
+  }
+  .empty-card {
+    background-color: #222630;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .empty-text {
+    color: #6b7280;
+  }
+  /* 底部品牌信息 */
+  .brand-footer {
+    border-top-color: #374151;
+  }
+  .brand-footer-inner {
+    color: #6b7280;
+  }
+  .loading-spinner {
+    border-color: rgba(255, 255, 255, 0.15);
+    border-top-color: #e5e7eb;
+  }
+  .loading-text {
+    color: #e5e7eb;
+  }
+}
+
+/* ============================================================
+   新闻详情弹层（半屏 sheet，关怀版风格）
+   - 遮罩淡黑，半屏 sheet 从底部滑入
+   - 大字标题、清晰关闭按钮、正文行高 1.8
+   ============================================================ */
+
+/* 遮罩层 */
+.detail-overlay {
+  position: fixed;
+  inset: 0;                           /* 等同于 top:0;right:0;bottom:0;left:0 */
+  background-color: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  animation: detail-fade-in 0.2s ease;
+}
+
+/* 半屏 sheet 主体 */
+.detail-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 720px;
+  margin: 0 auto;
+  max-height: 90vh;
+  background-color: #ffffff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+  z-index: 1001;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: detail-slide-up 0.25s ease;
+}
+
+/* 🔧 修复 Bug：让 hidden 属性在弹层上真正生效
+   原因：.detail-modal 的 display:flex 优先级 (0,1,0) 与 UA 的 [hidden]{display:none} 相同，
+   作者 CSS 后定义会覆盖 UA 规则，导致 HTML 的 hidden 属性失效 → 弹层默认可见、关不掉。
+   这里显式加 [hidden] 选择器，并提升优先级到 (0,2,0)，且用 !important 兜底，确保
+   不管后续怎么改 .detail-modal 的 display，hidden 都能把它隐藏。 */
+.detail-modal[hidden],
+.detail-overlay[hidden] {
+  display: none !important;
+}
+
+/* 顶部抓取条（小屏才显示，给用户下拉的视觉暗示；大屏改居中弹窗时隐藏） */
+.detail-modal::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 5px;
+  background-color: #d1d5db;
+  border-radius: 3px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+/* 关闭按钮：右上角大圆 X，点击区 44x44（关怀版硬要求） */
+.detail-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background-color: #1a3a5c;             /* 深蓝实色背景，强对比 */
+  color: #ffffff;                         /* 白色 ✕ */
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  /* 高 z-index 保证盖在 detail-content / 抓取条之上 */
+  z-index: 10;
+  /* 加阴影让按钮"浮"起来，绝不隐藏 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.detail-close:hover {
+  background-color: #0f2a45;             /* hover：更深的蓝 */
+}
+
+.detail-close:active {
+  transform: scale(0.92);
+  background-color: #0a1f33;
+}
+
+.detail-close:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+/* 详情内容区（可滚动） */
+.detail-content {
+  padding: 16px 20px 32px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+/* 详情大标题 */
+.detail-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.5;
+  margin: 8px 56px 16px 0;            /* 右侧留空间避开关闭按钮 */
+}
+
+/* 元信息：来源 / 时间 */
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-meta-item {
+  font-size: 16px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+/* 详情正文：大字 + 高行高 + 段落间距 */
+.detail-body {
+  font-size: 18px;
+  color: #1f2937;
+  line-height: 1.8;
+  white-space: pre-wrap;              /* 保留 full_text 里的换行 */
+  word-break: break-word;
+}
+
+/* 大屏：sheet 不要满宽，居中展示，更像桌面弹窗 */
+@media (min-width: 768px) {
+  .detail-modal {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    border-radius: 20px;
+    max-height: 80vh;
+    width: 720px;
+    animation: detail-fade-in 0.2s ease;
+  }
+  /* 大屏不需要底部抓取条 */
+  .detail-modal::before {
+    display: none;
+  }
+}
+
+/* 弹层动画 */
+@keyframes detail-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes detail-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* 详情弹层深色模式 */
+@media (prefers-color-scheme: dark) {
+  .detail-modal {
+    background-color: #262a33;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  }
+  .detail-modal::before {
+    background-color: #4b5563;
+  }
+  .detail-close {
+    background-color: #e8850e;             /* 深色模式：暖橙背景更亮 */
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  }
+  .detail-close:hover {
+    background-color: #d0760c;
+  }
+  .detail-title {
+    color: #f9fafb;
+  }
+  .detail-meta {
+    border-bottom-color: #374151;
+  }
+  .detail-meta-item {
+    color: #9ca3af;
+  }
+  .detail-body {
+    color: #e5e7eb;
+  }
+}

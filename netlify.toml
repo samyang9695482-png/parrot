@@ -1,16 +1,15 @@
 # Netlify 部署配置
 # ⚠️ 重要：Netlify 后台的 Build settings 中，请保持：
-#   - Base directory = frontend      (发布根目录是 frontend/)
-#   - Build command     = (留空)
-#   - Publish directory = (留空或 '.')  ← 不要填 'frontend'！否则会双重拼接成 frontend/frontend
-# 本文件 publish = "." 表示：publish 目录 = Base directory 本身，即 frontend/
+#   - Base directory = (留空，使用项目根目录)
+#   - Build command  = (留空)
+#   - Publish directory = (留空或 '.')  ← 不要填 'frontend'，前端文件现在都在项目根目录
 # 文档：https://docs.netlify.com/configure-builds/file-based-configuration/
 
 # ============================================================
 # 构建配置
 # ============================================================
 [build]
-  # 发布目录：相对 Base directory 的路径。当 Base directory=frontend 时，"." 表示就用 frontend/ 本身
+  # 发布目录：项目根目录本身（前端文件已移到根目录）
   publish = "."
 
   # 无构建步骤（纯静态 PWA，没有 build 命令）
@@ -20,13 +19,10 @@
 # 重定向规则
 # ============================================================
 
-# 规则 A：PWA 图标路径双重兼容
-#  - 当 Base directory=frontend 时，Netlify 把 frontend/ 映射为站点根
-#  - 所以 /img/yinwu.png 请求 ←→ frontend/img/yinwu.png 文件（自动匹配）
-#  - 这里再补一条前端里若写了 '/frontend/img/...' 这种多前缀错误路径也能正确跳
+# 规则 A：兼容旧路径（以前可能有人书签里存了 /frontend/xxx）
 [[redirects]]
-  from = "/frontend/img/*"
-  to = "/img/:splat"
+  from = "/frontend/*"
+  to = "/:splat"
   status = 301
 
 # 规则 B：TWA / PWABuilder 会查的数字资产证明文件（必须可访问）

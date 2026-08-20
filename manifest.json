@@ -1,0 +1,50 @@
+{
+  "name": "鹦鹉全球金融早报",
+  "short_name": "鹦鹉早报",
+  "description": "每日8点，看懂全球金融 - 大字版适老化金融早报",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#1a3a5c",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["news", "finance", "lifestyle"],
+  "icons": [
+    {
+      "src": "/img/yinwu.png",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/yinwu.png",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/yinwu.png",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 750 1334'%3E%3Crect width='750' height='1334' fill='%23f5f6fa'/%3E%3Crect y='0' width='750' height='200' fill='%231a3a5c'/%3E%3Ctext x='60' y='120' fill='white' font-size='56' font-weight='bold'%3E🦜 鹦鹉全球金融早报%3C/text%3E%3Ctext x='60' y='170' fill='%23ddd' font-size='32'%3E每日8点，看懂全球金融%3C/text%3E%3Ctext x='60' y='280' fill='%231a3a5c' font-size='48' font-weight='bold'%3E🌍 全球%3C/text%3E%3Crect x='40' y='310' width='670' height='200' rx='24' fill='white'/%3E%3Ctext x='60' y='390' fill='%231a3a5c' font-size='40' font-weight='bold'%3E美联储维持利率不变%3C/text%3E%3C/svg%3E",
+      "sizes": "750x1334",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "今日早报",
+      "short_name": "今日",
+      "description": "直接打开今日新闻",
+      "url": "./index.html"
+    }
+  ]
+}

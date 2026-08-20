@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#1a3a5c" />
+  <meta name="description" content="鹦鹉全球金融早报 - 每日8点，看懂全球金融" />
+  <title>鹦鹉全球金融早报</title>
+
+  <!-- PWA 清单文件 -->
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- 样式表 -->
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- 图标：鹦鹉 LOGO（PNG 文件，绝对路径确保 PWA/TWA/APK 都能找到） -->
+  <link rel="icon" type="image/png" href="/img/yinwu.png" />
+  <link rel="apple-touch-icon" href="/img/yinwu.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/img/yinwu.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/img/yinwu.png" />
+  <link rel="shortcut icon" href="/img/yinwu.png" />
+</head>
+<body>
+  <!-- 顶部品牌区 + 横向栏目导航 -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">🦜</span>
+        <div class="brand-text">
+          <h1 class="brand-title">鹦鹉全球金融早报</h1>
+          <p class="brand-subtitle">每日8点，看懂全球金融</p>
+        </div>
+      </div>
+      <div class="date-display" id="dateDisplay"></div>
+    </div>
+    <!-- 四个栏目横向导航：全球 | 贵金属 | 股票 | 币圈 -->
+    <nav class="nav-tabs" id="categoryTabs" aria-label="栏目导航"></nav>
+  </header>
+
+  <!-- PWA 安装提示条（导航栏下方，非模态，可关闭） -->
+  <div class="install-banner" id="installBanner" hidden>
+    <span class="install-banner-icon" aria-hidden="true">📥</span>
+    <div class="install-banner-text">
+      <strong>添加到主屏幕</strong>
+      <span class="install-banner-hint" id="installHint">像 App 一样打开，更方便</span>
+    </div>
+    <button class="install-banner-btn" id="installBtn" type="button">安装</button>
+    <button class="install-banner-close" id="installClose" type="button" aria-label="关闭提示">✕</button>
+  </div>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+    <div id="loadingState" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">正在加载今日新闻...</p>
+    </div>
+    <div id="newsContainer"></div>
+    <!-- 底部品牌信息（替代原下载按钮位置） -->
+    <footer class="brand-footer">
+      <div class="brand-footer-inner">
+        <span class="brand-footer-icon">🦜</span>
+        <span class="brand-footer-text">鹦鹉全球金融早报 · 每日8点，看懂全球金融</span>
+      </div>
+    </footer>
+  </main>
+
+  <!-- 新闻详情弹层（半屏 sheet，关怀版风格） -->
+  <div class="detail-overlay" id="detailOverlay" hidden></div>
+  <aside class="detail-modal" id="detailModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <button class="detail-close" id="detailClose" aria-label="关闭详情" type="button">✕</button>
+    <div class="detail-content">
+      <h2 class="detail-title" id="detailTitle"></h2>
+      <div class="detail-meta">
+        <span class="detail-meta-item" id="detailSource"></span>
+        <span class="detail-meta-item" id="detailTime"></span>
+      </div>
+      <div class="detail-body" id="detailBody"></div>
+    </div>
+  </aside>
+
+  <script>
+    // ============================================================
+    // 🔑 配置区
+    // ============================================================
+    const SUPABASE_URL = 'https://jrriwqflqmsxsgqazmcg.supabase.co';
+    // ✅ Supabase anon publishable key（用户 08-19 提供；严格区分字母 O/l 与数字 0/1）
+    const SUPABASE_ANON_KEY = 'sb_publishable_qazOCCYcoQLmsbVnpBl2LQ_DiEUEApx';
+
+    const NEWS_PER_CATEGORY = 3;            // 首页每栏目显示的标题条数
+    // 当日所有新闻缓存：详情页从这里按 idx 取数据，避免 dataset 存大字符串
+    let newsDataCache = [];
+    // 按栏目分组的全量新闻（首页/全部列表都从这里取）
+    let newsByCategory = {};
+    // 当前选中的栏目 key，默认"全球"
+    let currentCategory = 'global';
+    const CATEGORIES = [
+      { key: 'global',          name: '🌍 全球',     desc: '全球经济、央行政策、地缘政治' },
+      { key: 'precious_metals', name: '💰 贵金属',   desc: '黄金、白银' },
+      { key: 'stock',           name: '📈 股票',     desc: '美股、港股' },
+      { key: 'crypto',          name: '🪙 币圈',     desc: '比特币、虚拟币' }
+    ];
+
+    // ============================================================
+    // 工具函数
+    // ============================================================
+
+    function getBeijingDate(offsetDays = 0) {
+      // ✅ 无论浏览器本地时区是什么，统一按「北京时间 UTC+8」计算日期
+      // Date.now() 本身就是 UTC epoch ms，直接 +8h 偏移就是"北京时间的绝对时刻"
+      // 然后用 getUTC* 系列方法读出这个时刻的年月日，就是北京时间的年月日
+      // offsetDays=0 → 今天；offsetDays=1 → 明天（北京时间）
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const bjEpochMs = Date.now() + BEIJING_OFFSET_MS + offsetDays * 24 * 60 * 60 * 1000;
+      const bjDate = new Date(bjEpochMs);
+      const y = bjDate.getUTCFullYear();
+      const m = String(bjDate.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(bjDate.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getTodayString() {
+      return getBeijingDate(0);   // 北京时间 今日
+    }
+
+    function getTomorrowString() {
+      return getBeijingDate(1);   // 北京时间 明日
+    }
+
+    function getThreeDaysAgoString() {
+      // 北京时间 3 天前：今天 - 2 → 今天/昨天/前天 共 3 天范围
+      return getBeijingDate(-2);
+    }
+
+    function formatDisplayDate() {
+      // 同样用北京时间显示，避免跨时区显示成"昨天"
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const now = new Date(Date.now() + BEIJING_OFFSET_MS);
+      const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      return `${now.getUTCFullYear()}年${now.getUTCMonth() + 1}月${now.getUTCDate()}日 ${weekdays[now.getUTCDay()]}`;
+    }
+
+    // 把数据库的 YYYY-MM-DD 日期字符串格式化成用户友好的标题：『8月20日 周四』
+    function formatDateGroupTitle(dateStr /* YYYY-MM-DD */) {
+      if (!dateStr) return '';
+      const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      const [y, m, d] = dateStr.split('-').map(n => parseInt(n, 10));
+      // 用 UTC 构造 Date 避免本地时区捣乱
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      const mon = dt.getUTCMonth() + 1;
+      const day = dt.getUTCDate();
+      const wk = weekdays[dt.getUTCDay()];
+      // 今日 / 昨天 标签加持，一目了然
+      const today = getTodayString();
+      const yest = getBeijingDate(-1);
+      let suffix = '';
+      if (dateStr === today) suffix = '（今日）';
+      else if (dateStr === yest) suffix = '（昨日）';
+      return `${mon}月${day}日 ${wk}${suffix}`;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    // ============================================================
+    // 带超时的 fetch
+    // ============================================================
+
+    function fetchWithTimeout(url, options, timeout = 5000) {
+      return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('请求超时（5秒）')), timeout)
+        )
+      ]);
+    }
+
+    // ============================================================
+    // Supabase 数据读取（改用范围查询，解决日期匹配问题）
+    // ============================================================
+
+    async function fetchTodayNews() {
+      const today = getTodayString();
+      const tomorrow = getTomorrowString();
+      const threeDaysAgo = getThreeDaysAgoString();
+      // ✅ 查询条件：date >= 3 天前（北京时间）
+      //    - 取「今天 + 昨天 + 前天」一共 3 天的新闻
+      //    - 用明天做上限，兼容 DATE 列和 TIMESTAMPTZ 列
+      //    - 排序：先按 date 降序（新的日期在上），再按 created_at 降序（当日新新闻在上）
+      const url = `${SUPABASE_URL}/rest/v1/news?select=*&date=gte.${threeDaysAgo}&date=lt.${tomorrow}&order=date.desc,created_at.desc`;
+
+      console.log('📡 请求 URL:', url);
+      console.log('🕐 北京时间今日:', today, '  3 天前:', threeDaysAgo, '  明日:', tomorrow);
+
+      const resp = await fetchWithTimeout(url, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }, 5000);
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${text}`);
+      }
+      return resp.json();
+    }
+
+    // ============================================================
+    // 渲染：状态机模式
+    //   renderNews  → 拉到数据后分组并初始化状态
+    //   renderTabs  → 顶部 4 个 tab
+    //   renderCurrentView → 根据 currentCategory 渲染主体
+    // ============================================================
+
+    function renderNews(newsList) {
+      const container = document.getElementById('newsContainer');
+      container.innerHTML = '';
+      newsDataCache = [];
+
+      if (!newsList || newsList.length === 0) {
+        document.getElementById('categoryTabs').innerHTML = '';
+        container.innerHTML = `
+          <div style="text-align:center;padding:40px 20px;color:#999;font-size:20px;">
+            📭 最近 3 天暂无更新<br>
+            <small style="font-size:16px;color:#ccc;">系统每天 06:00 自动抓取最新新闻</small>
+          </div>
+        `;
+        return;
+      }
+
+      // ✅ 两层分组：外层日期（YYYY-MM-DD，稳定 key） → 内层栏目
+      // 严格遵循「展示格式 vs 数据交互 key 分离」规则，dateStr 只做 key，不直接显示
+      const dateOrder = [];                    // 日期从上到下的顺序（按 date 降序）
+      const byDate = {};                       // { dateStr -> { byCategory: {...}, total: N } }
+      newsByCategory = {};
+      CATEGORIES.forEach(cat => { newsByCategory[cat.key] = []; });
+
+      newsList.forEach(item => {
+        // 兼容 date 列是 DATE（2026-08-20）或 TIMESTAMPTZ（带时间）两种情况，
+        // 统一把前 10 位截出来做分组 key，避免跨天错配
+        const rawDate = (item.date || '').toString();
+        const dateStr = rawDate.length >= 10 ? rawDate.slice(0, 10) : getTodayString();
+        if (!byDate[dateStr]) {
+          byDate[dateStr] = {};
+          CATEGORIES.forEach(cat => { byDate[dateStr][cat.key] = []; });
+          dateOrder.push(dateStr);
+        }
+        if (byDate[dateStr][item.category]) {
+          byDate[dateStr][item.category].push(item);
+        }
+        if (newsByCategory[item.category]) {
+          newsByCategory[item.category].push(item);
+        }
+      });
+
+      // 缓存外层按日期分组结果，供 renderCurrentView 直接用
+      window.__newsByDate = { byDate, dateOrder };
+
+      renderTabs();
+      renderCurrentView();
+    }
+
+    // 顶部 4 个 tab：选中态加 nav-tab--active
+    function renderTabs() {
+      const bar = document.getElementById('categoryTabs');
+      bar.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-tab' + (cat.key === currentCategory ? ' nav-tab--active' : '');
+        btn.textContent = cat.name;
+        btn.setAttribute('aria-pressed', cat.key === currentCategory ? 'true' : 'false');
+        btn.addEventListener('click', () => switchCategory(cat.key));
+        bar.appendChild(btn);
+      });
+    }
+
+    // 切换栏目：默认回到 home 模式
+    function switchCategory(key) {
+      if (key === currentCategory) return;
+      currentCategory = key;
+      renderTabs();
+      renderCurrentView();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 渲染当前视图
+    // 按日期分组：每个日期先渲染『8月20日 周四（今日）』标题，再渲染该日该栏目的【全部】新闻
+    function renderCurrentView() {
+      const container = document.getElementById('newsContainer');
+      container.innerHTML = '';
+      newsDataCache = [];
+
+      const cache = window.__newsByDate || { byDate: {}, dateOrder: [] };
+      const cat = CATEGORIES.find(c => c.key === currentCategory) || CATEGORIES[0];
+
+      // 没有任何日期数据的兜底（Tab 切换到某栏目但近 3 天内一条都没有）
+      if (cache.dateOrder.length === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'news-card empty-card';
+        placeholder.innerHTML = `<p class="empty-text">最近 3 天暂无更新</p>`;
+        container.appendChild(placeholder);
+        return;
+      }
+
+      let dateBlockCount = 0;
+      cache.dateOrder.forEach(dateStr => {
+        const items = (cache.byDate[dateStr] || {})[currentCategory] || [];
+
+        // 该日期下此栏目没有新闻 → 跳过该日期块（避免出现"空日期块"）
+        if (items.length === 0) return;
+        dateBlockCount++;
+
+        // ---------- 日期标题：『8月20日 周四（今日）』 ----------
+        const dateH = document.createElement('div');
+        dateH.className = 'date-header';
+        const title = formatDateGroupTitle(dateStr);
+        dateH.innerHTML = `
+          <h2 class="date-header-title">${escapeHtml(title)}</h2>
+          <span class="date-header-count">${escapeHtml(cat.name)} · ${items.length} 条</span>
+        `;
+        container.appendChild(dateH);
+
+        // ---------- 栏目块 ----------
+        const section = document.createElement('section');
+        section.className = 'category-section';
+
+        // 栏目头（仅展示栏目名 + 描述，不再有"更多"按钮）
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `
+          <div class="category-header-text">
+            <h3 class="category-title">${escapeHtml(cat.name)}</h3>
+            <span class="category-desc">${escapeHtml(cat.desc)}</span>
+          </div>
+        `;
+        section.appendChild(header);
+
+        // 渲染该日期、该栏目的【全部】新闻（标题+摘要卡片，可点进详情）
+        console.log(`📋 renderCurrentView [${cat.key}] [${dateStr}] 条数: ${items.length}`);
+        items.forEach(item => {
+          const idx = newsDataCache.length;
+          newsDataCache.push(item);
+          const card = document.createElement('article');
+          card.className = 'news-card news-card--clickable';
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.innerHTML = `
+            <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+            <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
+            <span class="news-read-more">查看详情 ›</span>
+          `;
+          card.addEventListener('click', () => openDetail(idx));
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(idx); }
+          });
+          section.appendChild(card);
+        });
+
+        container.appendChild(section);
+      });
+
+      // 如果所有日期块都跳过了（用户选到某栏目近 3 天都没有数据）
+      if (dateBlockCount === 0) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'news-card empty-card';
+        placeholder.innerHTML = `<p class="empty-text">该栏目最近 3 天暂无更新</p>`;
+        container.appendChild(placeholder);
+      }
+    }
+
+    // ============================================================
+    // 详情弹层：打开 / 关闭
+    // ============================================================
+
+    function formatPublishTime(item) {
+      // 优先 published，其次 created_at；都没有返回空串
+      const raw = (item.published || item.created_at || '').toString().trim();
+      if (!raw) return '';
+      // 尝试转成北京时间可读格式；解析失败就退回原样
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw;
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const bj = new Date(d.getTime() + BEIJING_OFFSET_MS);
+      const y = bj.getUTCFullYear();
+      const m = String(bj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(bj.getUTCDate()).padStart(2, '0');
+      const hh = String(bj.getUTCHours()).padStart(2, '0');
+      const mm = String(bj.getUTCMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function openDetail(idx) {
+      const item = newsDataCache[idx];
+      if (!item) return;
+
+      document.getElementById('detailTitle').textContent = item.title || '无标题';
+      document.getElementById('detailSource').textContent =
+        item.source ? `来源：${item.source}` : '';
+      const t = formatPublishTime(item);
+      document.getElementById('detailTime').textContent = t ? `发布时间：${t}` : '';
+
+      // 正文优先 full_text；为空则退回 summary；都没有则占位
+      const fullText = (item.full_text && item.full_text.toString().trim())
+        || (item.summary && item.summary.toString().trim())
+        || '暂无正文内容';
+      document.getElementById('detailBody').textContent = fullText;
+
+      const overlay = document.getElementById('detailOverlay');
+      const modal = document.getElementById('detailModal');
+      overlay.hidden = false;
+      modal.hidden = false;
+      document.body.classList.add('detail-open'); // 锁背景滚动
+      // 把焦点放到关闭按钮，方便键盘用户立刻按 esc / 回车关闭
+      setTimeout(() => document.getElementById('detailClose').focus(), 50);
+    }
+
+    function closeDetail() {
+      document.getElementById('detailOverlay').hidden = true;
+      document.getElementById('detailModal').hidden = true;
+      document.body.classList.remove('detail-open');
+    }
+
+    // ============================================================
+    // 主流程
+    // ============================================================
+
+    async function main() {
+      document.getElementById('dateDisplay').textContent = formatDisplayDate();
+
+      const loading = document.getElementById('loadingState');
+      const container = document.getElementById('newsContainer');
+
+      try {
+        console.log('🚀 开始加载数据...');
+        const news = await fetchTodayNews();
+        console.log('✅ 获取到数据条数:', news.length);
+        renderNews(news);
+      } catch (err) {
+        console.error('❌ 加载失败:', err);
+        container.innerHTML = `
+          <div style="text-align:center;padding:40px 20px;color:#e74c3c;font-size:18px;">
+            ⚠️ 加载失败<br>
+            <small style="font-size:16px;color:#999;display:block;margin-top:12px;">${escapeHtml(err.message)}</small>
+            <small style="font-size:14px;color:#ccc;display:block;margin-top:8px;">请稍后刷新重试</small>
+          </div>
+        `;
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('./service-worker.js')
+          .then(reg => console.log('Service Worker 注册成功:', reg.scope))
+          .catch(err => console.warn('Service Worker 注册失败:', err));
+      });
+    }
+
+    // ============================================================
+    // 详情弹层事件绑定：X 按钮 / 点遮罩关闭 / Esc 关闭
+    // ============================================================
+    document.getElementById('detailClose').addEventListener('click', closeDetail);
+    document.getElementById('detailOverlay').addEventListener('click', closeDetail);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('detailModal').hidden) {
+        closeDetail();
+      }
+    });
+
+    // ============================================================
+    // PWA 安装提示条逻辑
+    //   - 桌面 Chrome/Edge/Android Chrome：beforeinstallprompt 事件触发后显示
+    //   - iOS Safari：不支持 beforeinstallprompt，但能手动添加到主屏，
+    //     给 iOS 用户也显示一次提示，引导他们用分享按钮添加
+    //   - 已经是 standalone 模式（已安装并打开）→ 不显示
+    //   - 用户关闭后用 localStorage 记录，不再显示
+    // ============================================================
+
+    const INSTALL_DISMISS_KEY = 'parrot_install_dismissed_v1';
+    let deferredInstallPrompt = null;     // 缓存 beforeinstallprompt 事件对象
+
+    function isStandaloneMode() {
+      // iOS Safari 用 window.navigator.standalone
+      // 桌面 PWA 用 (display-mode: standalone) 媒体查询
+      return (window.navigator.standalone === true) ||
+             window.matchMedia('(display-mode: standalone)').matches;
+    }
+
+    function isIOSSafari() {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iphone|ipad|ipod/i.test(ua);
+      const isWebkit = /safari/i.test(ua) && !/crios|fxios/i.test(ua);
+      return isIOS && isWebkit;
+    }
+
+    function showInstallBanner() {
+      if (isStandaloneMode()) return;                          // 已安装则不显示
+      if (localStorage.getItem(INSTALL_DISMISS_KEY) === '1') return; // 已关闭则不显示
+      document.getElementById('installBanner').hidden = false;
+    }
+
+    function hideInstallBanner() {
+      document.getElementById('installBanner').hidden = true;
+    }
+
+    function dismissInstallForever() {
+      hideInstallBanner();
+      try { localStorage.setItem(INSTALL_DISMISS_KEY, '1'); } catch (e) {}
+    }
+
+    // 桌面 Chrome/Edge/Android：捕获 beforeinstallprompt，阻止默认弹窗
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      showInstallBanner();
+    });
+
+    // 安装按钮：调缓存的 prompt()，根据用户选择决定是否永久隐藏
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        console.log('PWA 安装结果:', choice.outcome);
+        deferredInstallPrompt = null;
+        hideInstallBanner();
+        if (choice.outcome === 'accepted') dismissInstallForever();
+      } else if (isIOSSafari()) {
+        // iOS 不支持 prompt() API，给用户文字指引
+        alert('请按以下步骤添加到主屏幕：\n\n1. 点击浏览器底部"分享"图标（方框向上箭头）\n2. 在弹出菜单中选择"添加到主屏幕"\n3. 点击"添加"完成');
+        dismissInstallForever();
+      }
+    });
+
+    // 关闭按钮：永久隐藏（localStorage 记录）
+    document.getElementById('installClose').addEventListener('click', () => {
+      dismissInstallForever();
+    });
+
+    // iOS Safari 没有 beforeinstallprompt 事件，给个延迟显示
+    if (isIOSSafari()) {
+      // 改文案：iOS 没有"安装"按钮概念，按钮文字改为"了解"
+      setTimeout(() => {
+        const btn = document.getElementById('installBtn');
+        if (btn) btn.textContent = '了解';
+        showInstallBanner();
+      }, 1500);
+    }
+
+    main();
+  </script>
+</body>
+</html>
