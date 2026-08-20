@@ -68,13 +68,18 @@ CATEGORY_KEYWORDS = {
     ]
 }
 
-# RSS 源列表（已替换为 GitHub Actions 环境下稳定可访问、无需翻墙的源）
+# RSS 源列表（覆盖全球/贵金属/股票/币圈四大栏目，GitHub Actions 环境下稳定可访问、无需翻墙）
+# default_category = None → 交给 DeepSeek AI 自动分类
+# default_category = 'crypto' 等 → AI 失败时兜底用，避免误分到 global
 RSS_FEEDS = [
-    # BBC 商业新闻
+    # ============================================================
+    # 一、综合/全球新闻源（5 个）→ 主要喂给 global 栏目
+    # ============================================================
+    # BBC 商业新闻（财经向）
     {
         "name": "BBC Business",
         "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
-        "default_category": None  # 由 AI 自动分类
+        "default_category": None
     },
     # BBC 国际新闻
     {
@@ -99,6 +104,60 @@ RSS_FEEDS = [
         "name": "Al Jazeera",
         "url": "https://www.aljazeera.com/xml/rss/all.xml",
         "default_category": None
+    },
+
+    # ============================================================
+    # 二、贵金属专属源（2 个）→ 喂给 precious_metals 栏目
+    # ============================================================
+    # Kitco 黄金新闻（全球最大贵金属资讯网）
+    {
+        "name": "Kitco Gold",
+        "url": "https://www.kitco.com/news/rss",
+        "default_category": "precious_metals"
+    },
+    # Mining.com 贵金属与矿业新闻
+    {
+        "name": "Mining.com Precious Metals",
+        "url": "https://www.mining.com/precious-metals/feed/",
+        "default_category": "precious_metals"
+    },
+
+    # ============================================================
+    # 三、股票市场专属源（2 个）→ 喂给 stock 栏目
+    # ============================================================
+    # Yahoo Finance 股市头条
+    {
+        "name": "Yahoo Finance",
+        "url": "https://finance.yahoo.com/news/rssindex",
+        "default_category": "stock"
+    },
+    # Seeking Alpha 市场头条
+    {
+        "name": "Seeking Alpha Market",
+        "url": "https://seekingalpha.com/market_currents.xml",
+        "default_category": "stock"
+    },
+
+    # ============================================================
+    # 四、加密货币专属源（3 个）→ 喂给 crypto 栏目
+    # ============================================================
+    # Cointelegraph 加密货币新闻
+    {
+        "name": "Cointelegraph",
+        "url": "https://cointelegraph.com/rss",
+        "default_category": "crypto"
+    },
+    # CoinDesk 加密货币新闻
+    {
+        "name": "CoinDesk",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "default_category": "crypto"
+    },
+    # CryptoSlate 加密货币新闻
+    {
+        "name": "CryptoSlate",
+        "url": "https://cryptoslate.com/feed/",
+        "default_category": "crypto"
     }
 ]
 
