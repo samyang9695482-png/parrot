@@ -1,14 +1,6 @@
-# Netlify 重定向（_redirects 格式）—— 双保险
-# 文档：https://docs.netlify.com/routing/redirects/
-#
-# 规则优先级：netlify.toml < _redirects（这里）
-# 放在 publish 目录（frontend/）根下，发布后立即生效。
+# 静态文件直接放行
+/img/* /img/:splat 200
+/.well-known/* /.well-known/:splat 200
 
-# 规则 1：多写了一层 /frontend/img 前缀的错误路径 → 301 永久跳去正确 /img/
-/frontend/img/*    /img/:splat     301!
-
-# 规则 2：/.well-known/* （TWA 数字资产证明）直接放行
-/.well-known/*    /.well-known/:splat     200
-
-# 规则 3：SPA 回退到 index.html（不 force，避免覆盖真实存在的静态文件）
-/*                /index.html     200
+# SPA 回退：所有其他请求返回 index.html（状态码 200）
+/* /index.html 200
