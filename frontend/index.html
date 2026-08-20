@@ -93,8 +93,6 @@
     let newsByCategory = {};
     // 当前选中的栏目 key，默认"全球"
     let currentCategory = 'global';
-    // 当前视图模式：'home' = 首页 3 条标题；'all' = 全部列表（标题+摘要）
-    let viewMode = 'home';
     const CATEGORIES = [
       { key: 'global',          name: '🌍 全球',     desc: '全球经济、央行政策、地缘政治' },
       { key: 'precious_metals', name: '💰 贵金属',   desc: '黄金、白银' },
@@ -215,7 +213,7 @@
     // 渲染：状态机模式
     //   renderNews  → 拉到数据后分组并初始化状态
     //   renderTabs  → 顶部 4 个 tab
-    //   renderCurrentView → 根据 currentCategory + viewMode 渲染主体
+    //   renderCurrentView → 根据 currentCategory 渲染主体
     // ============================================================
 
     function renderNews(newsList) {
@@ -283,9 +281,8 @@
 
     // 切换栏目：默认回到 home 模式
     function switchCategory(key) {
-      if (key === currentCategory && viewMode === 'home') return;
+      if (key === currentCategory) return;
       currentCategory = key;
-      viewMode = 'home';
       renderTabs();
       renderCurrentView();
       window.scrollTo({ top: 0, behavior: 'smooth' });
