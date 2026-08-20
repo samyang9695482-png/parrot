@@ -1,8 +1,5 @@
 name = "parrot"
 compatibility_date = "2024-12-18"
 
-[pages]
-[pages.build]
-command = "echo 'No build needed'"
-[pages.build.upload]
-dir = "frontend"
+[assets]
+directory = "frontend"
