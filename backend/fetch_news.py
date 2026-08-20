@@ -44,6 +44,13 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 # 四个固定栏目（与前端 CATEGORIES 保持一致）
 VALID_CATEGORIES = ["global", "precious_metals", "stock", "crypto"]
 
+# RSS 源连续失败自动屏蔽机制
+#   - 某个源连续 N 次返回 0 条，临时跳过，避免浪费 DeepSeek 调用费用
+#   - 本次脚本运行内生效；脚本下次运行时计数器重置（重新给源机会）
+#   - 阈值：3 次（即第 4 次起跳过该源）
+FAIL_COUNTER: Dict[str, int] = {}
+FAIL_THRESHOLD = 3
+
 # 栏目关键词（当 AI 分类失败时，用关键词兜底）
 CATEGORY_KEYWORDS = {
     "global": [
@@ -53,8 +60,15 @@ CATEGORY_KEYWORDS = {
         "imf", "世界银行", "oecd", "g7", "g20", "峰会", "贸易", "出口", "进口"
     ],
     "precious_metals": [
-        "gold", "黄金", "silver", "白银", "铂", "钯", "贵金属", "金价", "银价",
-        "盎司", "金条", "避险"
+        "gold", "黄金", "silver", "白银", "铂金", "铂", "palladium", "钯金", "钯",
+        "贵金属", "金价", "银价", "铂金价", "钯金价", "盎司", "金条", "金币", "银条",
+        "kitco", "金矿", "银矿", "comex", "伦敦金", "伦敦银", "现货金", "现货银",
+        "避险资产", "避险", "黄金etf", "白银etf", "金etf", "银etf",
+        "贵金属市场", "黄金市场", "白银市场", "金价走势", "银价走势",
+        "黄金期货", "白银期货", "金期货", "银期货",
+        "实物金", "实物银", "金饰", "金宝", "黄金需求", "黄金供应",
+        "gold price", "silver price", "precious metals", "bullion",
+        "贵金属投资", "黄金投资", "白银投资", "黄金储备", "央行购金"
     ],
     "stock": [
         "stock", "股票", "股指", "大盘", "s&p", "标普", "道指", "djia",
@@ -165,9 +179,21 @@ RSS_FEEDS = [
 DEEPSEEK_SYSTEM_PROMPT = """你是一个专业的财经新闻编辑助手。对给定的一条新闻（标题和摘要），你需要：
 1) 分类：判断属于以下四个栏目之一，并只输出对应的英文 key：
    - global          （全球经济、央行政策、地缘政治、国际贸易）
-   - precious_metals （黄金、白银等贵金属）
+   - precious_metals （黄金、白银、铂金、钯金等贵金属；金价、银价、贵金属市场、贵金属 ETF、贵金属期货、贵金属投资、央行购金等）
    - stock           （股票、大盘、美股、港股、A股等）
    - crypto          （比特币、以太坊、加密货币、区块链）
+
+   ⚠️ 分类判定优先级（高 → 低）：
+   1. crypto      → 只要标题/摘要中提到 比特币/以太坊/加密货币/区块链/NFT/DeFi 等，就归 crypto，即使同时提到股票
+   2. precious_metals → 只要标题/摘要中提到 黄金/白银/铂金/钯金/贵金属/金价/银价/盎司/Kitco/COMEX/金矿/避险资产 等，就归 precious_metals，即使同时提到美联储或地缘政治
+   3. stock       → 个股、大盘指数、财报、IPO、券商、基金等明确股票向的内容
+   4. global      → 上述都不符合时，归 global（宏观经济、央行政策、地缘政治等）
+
+   🎯 贵金属判定关键词（任一命中即归 precious_metals）：
+      gold, 黄金, silver, 白银, 铂金, 钯金, 贵金属, 金价, 银价, 盎司, 金条, 金币,
+      kitco, comex, 金矿, 银矿, 伦敦金, 伦敦银, 现货金, 现货银, 避险资产,
+      黄金etf, 白银etf, 黄金期货, 白银期货, 央行购金, gold price, silver price, bullion
+
 2) 翻译：如果标题或摘要为英文，请翻译成流畅的简体中文；若已是中文则保持原样，但需修正不通顺之处。
 3) 压缩：将摘要压缩到不超过 2 句完整的话，去除一切情绪化、主观、夸张的表达（如"愚蠢""鲁莽""史诗级""暴跌"等），
          只保留客观的、对投资者有价值的事实信息。
@@ -236,6 +262,12 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
     url = feed_cfg["url"]
     default_cat = feed_cfg.get("default_category")
 
+    # 连续失败自动屏蔽：超过阈值则直接跳过，节省时间与 AI 调用费用
+    fails = FAIL_COUNTER.get(name, 0)
+    if fails >= FAIL_THRESHOLD:
+        log(f"⏭ 跳过 RSS: {name}（已连续 {fails} 次返回 0 条，本次自动屏蔽）", "WARN")
+        return []
+
     log(f"抓取 RSS: {name} ({url})")
     raw_entries = []
     try:
@@ -260,7 +292,16 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
     except Exception as e:
         log(f"RSS 抓取失败（{name}）：{e}", "ERROR")
 
-    log(f"  → 拿到 {len(raw_entries)} 条")
+    # 更新连续失败计数器
+    if len(raw_entries) == 0:
+        FAIL_COUNTER[name] = fails + 1
+        log(f"  → 拿到 0 条（连续第 {FAIL_COUNTER[name]} 次）", "WARN")
+    else:
+        # 抓到数据，清零计数器
+        if fails > 0:
+            log(f"  → 源 {name} 恢复正常（之前连续失败 {fails} 次）", "INFO")
+        FAIL_COUNTER[name] = 0
+        log(f"  → 拿到 {len(raw_entries)} 条")
     return raw_entries
 
 
@@ -519,10 +560,60 @@ def main() -> int:
 
     # 7. 汇总
     counts: Dict[str, int] = {c: 0 for c in VALID_CATEGORIES}
+    source_counts: Dict[str, Dict[str, int]] = {}  # {source_name: {category: count, ...}}
     for r in new_records:
-        counts[r["category"]] = counts.get(r["category"], 0) + 1
-    log(f"今日新增汇总：{counts}")
+        cat = r["category"]
+        src = r.get("source", "unknown")
+        counts[cat] = counts.get(cat, 0) + 1
+        if src not in source_counts:
+            source_counts[src] = {c: 0 for c in VALID_CATEGORIES}
+        source_counts[src][cat] = source_counts[src].get(cat, 0) + 1
 
+    # 按栏目汇总
+    log("=" * 60)
+    log("📊 最终分类汇总（按栏目）")
+    log("=" * 60)
+    total = 0
+    for cat in VALID_CATEGORIES:
+        n = counts.get(cat, 0)
+        total += n
+        # 栏目中文名映射
+        cat_name = {
+            "global": "🌍 全球",
+            "precious_metals": "💰 贵金属",
+            "stock": "📈 股票",
+            "crypto": "🪙 币圈"
+        }.get(cat, cat)
+        marker = " ❌ 0 条（空栏目）" if n == 0 else ""
+        log(f"  {cat_name:<12} : {n:>3} 条{marker}")
+    log(f"  {'合计':<12} : {total:>3} 条")
+
+    # 按源汇总（看哪个源贡献了多少）
+    log("=" * 60)
+    log("📰 各 RSS 源贡献汇总（按源 × 栏目）")
+    log("=" * 60)
+    for src, cats in source_counts.items():
+        src_total = sum(cats.values())
+        cat_detail = " | ".join(
+            f"{cat_name_map}: {cats.get(c, 0)}"
+            for c, cat_name_map in [
+                ("global", "🌍"), ("precious_metals", "💰"),
+                ("stock", "📈"), ("crypto", "🪙")
+            ]
+        )
+        log(f"  {src:<30} : 共 {src_total:>3} 条  [{cat_detail}]")
+
+    # 失败源告警
+    failed_sources = [n for n, c in FAIL_COUNTER.items() if c > 0]
+    if failed_sources:
+        log("=" * 60)
+        log("⚠️ 本次运行失败源（建议下次手动检查 URL 是否还有效）")
+        log("=" * 60)
+        for n in failed_sources:
+            log(f"  {n} : 连续 {FAIL_COUNTER[n]} 次返回 0 条")
+
+    log("=" * 60)
+    log(f"今日新增汇总：{counts}")
     log("全部完成 🦜")
     return 0
 
