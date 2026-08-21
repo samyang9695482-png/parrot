@@ -1,0 +1,80 @@
+# ============================================================
+# 鹦鹉全球金融早报 - 事件倒计时维护
+# 北京时间每天 06:30 运行（错开新闻抓取的 06:00，避免双跑挤占）
+# 也可在仓库 Actions 页面手动点击 "Run workflow" 立即执行
+#
+# 本 workflow 只做两件事：
+#   1. 把已过期事件标记为 ended
+#   2. 清理已结束超过 15 天的事件
+# 不负责新增事件——事件由人工录入或后续接入财经日历 API
+# ============================================================
+
+name: Events Maintenance
+
+on:
+  schedule:
+    # UTC 22:30 = 北京时间第二天 06:30
+    # ┌───────── 分钟 (0-59)
+    # │  ┌────── 小时 (0-23, UTC)
+    # │  │  ┌──── 日期 (1-31)
+    # │  │  │  ┌─ 月份 (1-12)
+    # │  │  │  │  ┌ 星期 (0-6, 0=周日)
+    # │  │  │  │  │
+    - cron: "30 22 * * *"
+
+  # 允许手动触发（方便调试）
+  workflow_dispatch:
+
+jobs:
+  maintain-events:
+    name: Maintain Events Status
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      # 1. 拉取仓库代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 安装 Python 3.11
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      # 3. 安装依赖（events_fetcher.py 只用到 supabase + python-dotenv，
+      #    但直接复用 fetch_news.py 的 requirements.txt 即可，省一个文件）
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. 把 GitHub Secrets 写到 .env 文件
+      #    注意：events_fetcher.py 只用 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+      #    （DEEPSEEK_* 字段虽然不需要，但也写进去保持与 daily_news.yml 一致，避免未来扩展时漏配）
+      - name: Generate .env file
+        run: |
+          cat > .env <<'EOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_BASE_URL=${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
+          DEEPSEEK_MODEL=${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          EOF
+
+      # 5. 运行维护脚本
+      - name: Run events_fetcher.py
+        run: python events_fetcher.py
+        timeout-minutes: 10
+
+      # 6. 失败时打印调试信息
+      - name: Show debug info on failure
+        if: failure()
+        run: |
+          echo "脚本执行失败，下面是 .env 文件检查（仅显示长度，避免泄露 Key）"
+          wc -c .env
