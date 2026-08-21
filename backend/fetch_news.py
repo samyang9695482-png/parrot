@@ -51,6 +51,17 @@ VALID_CATEGORIES = ["global", "precious_metals", "stock", "crypto"]
 FAIL_COUNTER: Dict[str, int] = {}
 FAIL_THRESHOLD = 3
 
+# 每日 DeepSeek AI 处理条数上限（控制成本）
+#   - 默认 150 条：7 个贵金属源 + 2 股票源 + 3 币圈源 + 5 综合源，一天足够跑满配额
+#   - 当总条数超过上限时，按「源 default_category 优先级」分层采样，
+#     优先保证 crypto / precious_metals / stock 这些专属源不被挤掉，
+#     最后再补 global 综合源，避免 5 个综合源吃掉所有 150 条配额
+MAX_DAILY_AI_PROCESS = 150
+
+# 分层采样的优先级（每个 default_category 的权重越高，越先取）
+# None = 综合源（交给 AI 自由分类），放到最后才补
+SAMPLING_ORDER = ["crypto", "precious_metals", "stock", "global", None]
+
 # 栏目关键词（当 AI 分类失败时，用关键词兜底）
 CATEGORY_KEYWORDS = {
     "global": [
@@ -129,14 +140,16 @@ RSS_FEEDS = [
     {
         "name": "Kitco Gold",
         "url": "https://www.kitco.com/news/rss",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
     # 2) Kitco Gold - RSSHub 备用源（当官方 RSS 在 Actions 环境抓不到时，RSSHub 走公网入口）
     #    建议保留本源作为主源的补充，二者内容重合度高、但总有一个活
     {
         "name": "Kitco Gold (RSSHub)",
         "url": "https://rsshub.app/kitco/gold",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
     # 3) Mining.com 全站 Feed（更稳定）+ 条目级贵金属关键词过滤（避开煤/铜/铁矿）
     #    - 原来用 precious-metals/feed 分类页有时 301 或 0 条；全站 feed 一定有内容
@@ -145,6 +158,7 @@ RSS_FEEDS = [
         "name": "Mining.com (Gold/Silver Filter)",
         "url": "https://www.mining.com/feed/",
         "default_category": "precious_metals",
+        "per_entry_limit": 60,
         "entry_keywords": [
             "gold", "黄金", "silver", "白银", "贵金属", "precious", "金价", "银价",
             "铂", "铂金", "钯", "钯金", "bullion", "金条", "银条", "金币", "comex",
@@ -158,25 +172,29 @@ RSS_FEEDS = [
     {
         "name": "OilPrice.com Metals",
         "url": "https://oilprice.com/Metals/feed/rss.html",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
     # 5) Barchart.com - Darin Newsom 贵金属分析师专栏（专业深度分析）
     {
         "name": "Barchart Darin Newsom Metals",
         "url": "https://stage.barchart.com/news/authors/45/Darin%20Newsom/rss",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
     # 6) Kaiser Research Online - 贵金属与矿业研究
     {
         "name": "Kaiser Research Online Metals",
         "url": "https://secure.kaiserresearch.com/g19/RSS.asp",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
     # 7) Mining.com 贵金属分类页（保留，与全站 feed 过滤版作为双重保险）
     {
         "name": "Mining.com Precious Metals",
         "url": "https://www.mining.com/precious-metals/feed/",
-        "default_category": "precious_metals"
+        "default_category": "precious_metals",
+        "per_entry_limit": 60
     },
 
     # ============================================================
@@ -186,13 +204,15 @@ RSS_FEEDS = [
     {
         "name": "Yahoo Finance",
         "url": "https://finance.yahoo.com/news/rssindex",
-        "default_category": "stock"
+        "default_category": "stock",
+        "per_entry_limit": 60
     },
     # Seeking Alpha 市场头条
     {
         "name": "Seeking Alpha Market",
         "url": "https://seekingalpha.com/market_currents.xml",
-        "default_category": "stock"
+        "default_category": "stock",
+        "per_entry_limit": 60
     },
 
     # ============================================================
@@ -202,19 +222,22 @@ RSS_FEEDS = [
     {
         "name": "Cointelegraph",
         "url": "https://cointelegraph.com/rss",
-        "default_category": "crypto"
+        "default_category": "crypto",
+        "per_entry_limit": 60
     },
     # CoinDesk 加密货币新闻
     {
         "name": "CoinDesk",
         "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-        "default_category": "crypto"
+        "default_category": "crypto",
+        "per_entry_limit": 60
     },
     # CryptoSlate 加密货币新闻
     {
         "name": "CryptoSlate",
         "url": "https://cryptoslate.com/feed/",
-        "default_category": "crypto"
+        "default_category": "crypto",
+        "per_entry_limit": 60
     }
 ]
 
@@ -303,13 +326,15 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
     """抓取单个 RSS，返回统一格式的新闻列表（未去重、未处理）
 
     支持 feed_cfg 里的可选字段：
-      - entry_keywords: List[str]  仅保留「标题或摘要中命中任一关键词」的条目
+      - per_entry_limit:  int        每个源最多取前 N 条（默认 30，贵金属源可设 60）
+      - entry_keywords:   List[str]  仅保留「标题或摘要中命中任一关键词」的条目
                                   关键词不区分大小写；空列表或省略则不做过滤
       - entry_keywords_min_hit: int  至少命中几个关键词才算数（默认 1）
     """
     name = feed_cfg["name"]
     url = feed_cfg["url"]
     default_cat = feed_cfg.get("default_category")
+    per_entry_limit = int(feed_cfg.get("per_entry_limit") or 30)
     entry_keywords = [k.lower() for k in (feed_cfg.get("entry_keywords") or [])]
     min_hit = max(int(feed_cfg.get("entry_keywords_min_hit") or 1), 1)
 
@@ -319,7 +344,7 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
         log(f"⏭ 跳过 RSS: {name}（已连续 {fails} 次返回 0 条，本次自动屏蔽）", "WARN")
         return []
 
-    log(f"抓取 RSS: {name} ({url})")
+    log(f"抓取 RSS: {name} ({url})  per_entry_limit={per_entry_limit}")
     if entry_keywords:
         log(f"  → 条目过滤关键词：{entry_keywords[:8]} ...（任一命中保留，至少需命中 {min_hit} 个）")
     raw_entries = []
@@ -327,7 +352,7 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
         parsed = feedparser.parse(url)
         if parsed.bozo and not parsed.entries:
             log(f"RSS 解析警告（{name}）：{parsed.bozo_exception}", "WARN")
-        for entry in parsed.entries[:30]:  # 每个源最多取前 30 条
+        for entry in parsed.entries[:max(per_entry_limit, 1)]:
             title = clean_text(entry.get("title", ""))
             summary = clean_text(entry.get("summary", "") or entry.get("description", ""))
             if not title:
@@ -342,10 +367,29 @@ def fetch_rss_feed(feed_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
 
             link = entry.get("link", "")
             published = entry.get("published", "") or entry.get("updated", "")
+
+            # 全文提取：优先 entry.content[0].value（RSS 2.0 的 content:encoded
+            # 或 Atom 的 content 字段），没有则用 summary 兜底
+            # 注意：feedparser 把 <content:encoded> 放在 entry.content 列表里
+            full_text = ""
+            content_list = entry.get("content")
+            if content_list:
+                # content_list 是 list[dict]，取第 0 个的 value 字段
+                first = content_list[0] if isinstance(content_list, list) else None
+                if isinstance(first, dict):
+                    raw_full = first.get("value", "")
+                    if raw_full:
+                        full_text = clean_text(raw_full)
+
+            # 如果全文清洗后与摘要一致或为空，置空（让前端走 summary 回退）
+            if not full_text or full_text == summary:
+                full_text = ""
+
             raw_entries.append({
                 "source": name,
                 "raw_title": title,
                 "raw_summary": summary,
+                "full_text": full_text,
                 "link": link,
                 "published": published,
                 "default_category": default_cat
@@ -391,11 +435,17 @@ def call_deepseek(
     client: OpenAI,
     title: str,
     summary: str,
-    model: str = "deepseek-chat"
+    model: str = "deepseek-chat",
+    source_default_cat: Optional[str] = None,
 ) -> Optional[Dict[str, str]]:
     """
     调用 DeepSeek Chat Completions，返回结构化 JSON：
     {"category": "...", "title": "...", "summary": "..."}
+
+    参数 source_default_cat：
+      - 来自 RSS 配置中的 default_category（如 'precious_metals' / None）
+      - 当 AI 返回非法 category，或返回的 category 与专属源不符时，会被上层校正
+      - 在校正前，优先使用源 default 作为 fallback（AI 解析失败仍能拿源默认分类）
     """
     user_content = (
         f"标题：{title}\n"
@@ -420,11 +470,15 @@ def call_deepseek(
             raw = re.sub(r"```$", "", raw).strip()
 
         data = json.loads(raw)
-        # 校验字段
+        # 校验 category：先试源 default → 再试关键词兜底 → 最后 global
         category = (data.get("category") or "").strip().lower()
         if category not in VALID_CATEGORIES:
-            log(f"  DeepSeek 返回非法 category：{category}，使用兜底", "WARN")
-            category = fallback_classify(title, summary)
+            log(f"  DeepSeek 返回非法 category：{category!r}，尝试源 default={source_default_cat!r}", "WARN")
+            if source_default_cat and source_default_cat in VALID_CATEGORIES:
+                category = source_default_cat
+            else:
+                fb = fallback_classify(title, summary)
+                category = fb if fb in VALID_CATEGORIES else "global"
         out_title = clean_text(data.get("title") or title)
         out_summary = clean_text(data.get("summary") or summary)
         return {
@@ -444,27 +498,75 @@ def process_news_with_ai(
     client: OpenAI,
     raw_items: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    """对所有原始新闻逐条调用 DeepSeek，返回处理完成的记录"""
+    """对所有原始新闻逐条调用 DeepSeek，返回处理完成的记录
+
+    贵金属校正逻辑（为了保证 precious_metals 栏目绝不 0 条）：
+      - 若某条目来自 default_category='precious_metals' 的源（Kitco、Mining贵金属等）
+        且 AI 分类不是 precious_metals（比如误分到 global），则：
+          1. 先用关键词判定：标题/摘要命中贵金属关键词 → 强制归 precious_metals
+          2. 否则 AI 分类后仍不信任，直接按源 default_cat = precious_metals 校正
+        并打 WARN 日志：「专属源 AI 分类校正：global → precious_metals（Kitco Gold）」
+      - 对 crypto/stock 专属源采用相同策略（防止 AI 把 Coindesk 新闻误分到 global）
+      - 综合源（default_category=None）完全信任 AI 分类
+    """
     processed: List[Dict[str, Any]] = []
     total = len(raw_items)
     for idx, item in enumerate(raw_items, 1):
-        log(f"AI 处理进度：{idx}/{total} - {item['source']}")
+        src_default = item.get("default_category")
+        log(f"AI 处理进度：{idx}/{total} - {item['source']} (default_cat={src_default or 'None'})")
         ai_result = call_deepseek(
             client,
             item["raw_title"],
-            item["raw_summary"]
+            item["raw_summary"],
+            source_default_cat=src_default
         )
         if not ai_result:
-            # AI 失败 → 用兜底分类 + 原文
-            category = item.get("default_category") or fallback_classify(
-                item["raw_title"], item["raw_summary"]
-            )
+            # AI 失败 → 先尝试源 default → 再尝试关键词兜底
+            if src_default and src_default in VALID_CATEGORIES:
+                category = src_default
+            else:
+                category = fallback_classify(item["raw_title"], item["raw_summary"])
             ai_result = {
-                "category": category,
+                "category": category if category in VALID_CATEGORIES else "global",
                 "title": item["raw_title"],
                 "summary": item["raw_summary"]
             }
-            log(f"  → 已使用兜底分类：{category}", "WARN")
+            log(f"  → AI 失败，使用源 default 兜底分类：{ai_result['category']}", "WARN")
+        else:
+            # AI 成功：若为专属源但 AI 分类 != 源 default_cat，执行强制校正
+            if (
+                src_default
+                and src_default in VALID_CATEGORIES
+                and ai_result["category"] != src_default
+            ):
+                # 额外二次验证：标题+摘要是否真的命中该栏目的关键词
+                cat_keywords = [
+                    kw.lower()
+                    for kw in (CATEGORY_KEYWORDS.get(src_default) or [])
+                ]
+                haystack = f"{item['raw_title']} {item['raw_summary']}".lower()
+                hit = sum(1 for kw in cat_keywords if kw and kw in haystack)
+                # 贵金属专属源：命中 0 也信任源 default（Kitco 全站就不会有非贵金属）
+                if src_default == "precious_metals":
+                    log(
+                        f"  ✅ 贵金属专属源校正：AI={ai_result['category']} → "
+                        f"precious_metals（命中关键词 {hit} 个，兜底信任源）",
+                        "WARN"
+                    )
+                    ai_result["category"] = src_default
+                elif hit > 0:
+                    log(
+                        f"  ✅ 专属源校正：AI={ai_result['category']} → "
+                        f"{src_default}（命中关键词 {hit} 个）",
+                        "WARN"
+                    )
+                    ai_result["category"] = src_default
+                else:
+                    log(
+                        f"  ⚠️ 专属源未校正：AI={ai_result['category']}，"
+                        f"default={src_default}，但命中关键词=0，保留 AI 结果",
+                        "WARN"
+                    )
 
         # 合并信息，组成数据库记录
         record = {
@@ -473,8 +575,10 @@ def process_news_with_ai(
             "category": ai_result["category"],
             "title": ai_result["title"],
             "summary": ai_result["summary"],
+            "full_text": item.get("full_text", ""),
             "source": item["source"],
             "original_link": item.get("link", ""),
+            "published": item.get("published", ""),
             "content_hash": item["content_hash"],
             "created_at": datetime.now(BEIJING_TZ).isoformat()
         }
@@ -565,14 +669,17 @@ CREATE TABLE IF NOT EXISTS news (
     category     VARCHAR(32) NOT NULL,
     title        TEXT NOT NULL,
     summary      TEXT NOT NULL DEFAULT '',
+    full_text    TEXT DEFAULT '',                -- 原文全文（RSS 提供 content:encoded 时存）
     source       VARCHAR(128),
     original_link TEXT,
+    published    TIMESTAMPTZ,                    -- 原文发布时间（来自 RSS 的 published/updated）
     content_hash VARCHAR(64) NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_news_date     ON news(date);
 CREATE INDEX IF NOT EXISTS idx_news_category ON news(category);
+CREATE INDEX IF NOT EXISTS idx_news_published ON news(published);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_news_date_hash ON news(date, content_hash);
 """)
         log("=" * 60, "WARN")
@@ -608,6 +715,29 @@ def main() -> int:
     if not raw_items:
         log("未抓到任何新闻，脚本结束", "WARN")
         return 0
+
+    # 4.1 按 default_category 分层采样（precious_metals 专属源优先，global 最后补）
+    #     避免 5 个综合源把 150 条配额先占满，导致贵金属/币圈/股票永远 0 条
+    if len(raw_items) > MAX_DAILY_AI_PROCESS:
+        sampled: List[Dict[str, Any]] = []
+        remaining = MAX_DAILY_AI_PROCESS
+        for bucket in SAMPLING_ORDER:
+            if remaining <= 0:
+                break
+            bucket_items = [r for r in raw_items if r.get("default_category") == bucket]
+            n_take = min(len(bucket_items), remaining)
+            log(
+                f"📦 分层采样：default_cat={bucket or '综合(None)'} "
+                f"有 {len(bucket_items)} 条 → 取前 {n_take} 条"
+            )
+            sampled.extend(bucket_items[:n_take])
+            remaining -= n_take
+        # 如果还有剩（None 桶本身超过配额，剩下先不补），不做任何事
+        log(
+            f"✂️  每日 AI 上限 {MAX_DAILY_AI_PROCESS}，原总数 {len(raw_items)} "
+            f"条 → 采样后 {len(sampled)} 条（precious_metals 优先）"
+        )
+        raw_items = sampled
 
     # 5. AI 处理
     processed = process_news_with_ai(deepseek_client, raw_items)

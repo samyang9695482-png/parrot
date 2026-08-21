@@ -839,36 +839,126 @@ body.detail-open {
 
 /* 详情大标题 */
 .detail-title {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   color: #1a3a5c;
-  line-height: 1.5;
-  margin: 8px 56px 16px 0;            /* 右侧留空间避开关闭按钮 */
+  line-height: 1.45;
+  letter-spacing: 0.5px;
+  margin: 8px 56px 18px 0;            /* 右侧留空间避开关闭按钮 */
 }
 
-/* 元信息：来源 / 时间 */
+/* 元信息：来源 / 时间 / 原文链接 */
 .detail-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+  gap: 10px 18px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
   border-bottom: 1px solid #e5e7eb;
+  align-items: baseline;
 }
 
 .detail-meta-item {
-  font-size: 16px;
+  font-size: 15px;
   color: #6b7280;
   line-height: 1.5;
+}
+
+.detail-meta-source {
+  font-weight: 600;
+  color: #1a3a5c;
+}
+
+.detail-meta-source::before {
+  content: "📰 ";
+  margin-right: 2px;
+}
+
+.detail-meta-time::before {
+  content: "🕐 ";
+  margin-right: 2px;
+}
+
+/* meta 行的原文链接：小型可点击 chip */
+.detail-meta-link {
+  color: #e8850e;
+  text-decoration: none;
+  font-weight: 500;
+  word-break: break-all;
+  border-bottom: 1px dashed rgba(232, 133, 14, 0.4);
+  padding-bottom: 1px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.detail-meta-link:hover {
+  color: #d0760c;
+  border-bottom-color: #d0760c;
+}
+
+.detail-meta-link:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* 详情正文：大字 + 高行高 + 段落间距 */
 .detail-body {
   font-size: 18px;
   color: #1f2937;
-  line-height: 1.8;
-  white-space: pre-wrap;              /* 保留 full_text 里的换行 */
+  line-height: 1.85;
   word-break: break-word;
+}
+
+.detail-body p {
+  margin: 0 0 18px 0;                   /* 段落底部间距，营造阅读节奏 */
+}
+
+.detail-body p:last-child {
+  margin-bottom: 0;                     /* 最后一段不留底距，让按钮紧贴 */
+}
+
+/* 阅读原文按钮：关怀版大按钮，醒目易点 */
+.detail-read-original {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 28px 0 8px;
+  padding: 14px 24px;
+  background-color: #e8850e;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(232, 133, 14, 0.25);
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  letter-spacing: 1px;
+}
+
+.detail-read-original:hover {
+  background-color: #d0760c;
+  box-shadow: 0 4px 14px rgba(232, 133, 14, 0.35);
+}
+
+.detail-read-original:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 6px rgba(232, 133, 14, 0.25);
+}
+
+.detail-read-original:focus-visible {
+  outline: 3px solid #1a3a5c;
+  outline-offset: 3px;
+}
+
+.detail-read-original-arrow {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.detail-read-original[hidden] {
+  display: none !important;
 }
 
 /* 大屏：sheet 不要满宽，居中展示，更像桌面弹窗 */
@@ -925,7 +1015,27 @@ body.detail-open {
   .detail-meta-item {
     color: #9ca3af;
   }
+  .detail-meta-source {
+    color: #f9fafb;                          /* 来源在深色下更突出 */
+  }
+  .detail-meta-link {
+    color: #f9a02e;
+    border-bottom-color: rgba(249, 160, 46, 0.5);
+  }
+  .detail-meta-link:hover {
+    color: #fbb04d;
+    border-bottom-color: #fbb04d;
+  }
   .detail-body {
     color: #e5e7eb;
+  }
+  .detail-read-original {
+    background-color: #e8850e;
+    color: #ffffff;
+    box-shadow: 0 2px 12px rgba(232, 133, 14, 0.4);
+  }
+  .detail-read-original:hover {
+    background-color: #d0760c;
+    box-shadow: 0 4px 16px rgba(232, 133, 14, 0.5);
   }
 }

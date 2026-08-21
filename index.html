@@ -71,10 +71,15 @@
     <div class="detail-content">
       <h2 class="detail-title" id="detailTitle"></h2>
       <div class="detail-meta">
-        <span class="detail-meta-item" id="detailSource"></span>
-        <span class="detail-meta-item" id="detailTime"></span>
+        <span class="detail-meta-item detail-meta-source" id="detailSource"></span>
+        <span class="detail-meta-item detail-meta-time" id="detailTime"></span>
+        <a class="detail-meta-item detail-meta-link" id="detailSourceLink" href="#" target="_blank" rel="noopener noreferrer" hidden>原文链接 ↗</a>
       </div>
       <div class="detail-body" id="detailBody"></div>
+      <a class="detail-read-original" id="detailReadOriginal" href="#" target="_blank" rel="noopener noreferrer" hidden>
+        <span>阅读原文</span>
+        <span class="detail-read-original-arrow" aria-hidden="true">↗</span>
+      </a>
     </div>
   </aside>
 
@@ -408,7 +413,40 @@
       const fullText = (item.full_text && item.full_text.toString().trim())
         || (item.summary && item.summary.toString().trim())
         || '暂无正文内容';
-      document.getElementById('detailBody').textContent = fullText;
+
+      // 按段落渲染：把 \n（连续多个）切分，每段包成 <p>，便于段落间距排版
+      // 全为单段时也包一个 <p>，统一通过 CSS 控制段落样式
+      const paragraphs = fullText
+        .split(/\n+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      const bodyEl = document.getElementById('detailBody');
+      if (paragraphs.length > 0) {
+        bodyEl.innerHTML = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+      } else {
+        bodyEl.innerHTML = `<p>${escapeHtml(fullText)}</p>`;
+      }
+
+      // 阅读原文按钮：只在 original_link 有效时显示
+      const readBtn = document.getElementById('detailReadOriginal');
+      const srcLink = document.getElementById('detailSourceLink');
+      const link = (item.original_link || '').toString().trim();
+      if (link) {
+        readBtn.href = link;
+        readBtn.hidden = false;
+        srcLink.href = link;
+        // 用简短 hostname 显示，避免长 URL 把 meta 行撑爆
+        try {
+          const host = new URL(link).hostname.replace(/^www\./, '');
+          srcLink.textContent = `${host} ↗`;
+          srcLink.hidden = false;
+        } catch (e) {
+          srcLink.hidden = false;
+        }
+      } else {
+        readBtn.hidden = true;
+        srcLink.hidden = true;
+      }
 
       const overlay = document.getElementById('detailOverlay');
       const modal = document.getElementById('detailModal');
