@@ -98,6 +98,85 @@ CATEGORY_KEYWORDS = {
     ]
 }
 
+
+# ============================================================
+# K 线影响度评分关键词加分规则
+# ============================================================
+# 用途：
+#   1. AI 失败时作为兜底评分
+#   2. AI 成功时作为分数下限校验（避免 AI 漏判重要关键词而打分偏低）
+# 规则：每条规则内部命中任一关键词即加对应分数（同规则内不重复加分）
+IMPACT_KEYWORDS = [
+    # ===== 第一档 +3 分：直接驱动 K 线的硬数据/事件 =====
+    {
+        "score": 3,
+        "label": "央行/利率",
+        "keywords": [
+            "加息", "降息", "利率", "fed", "美联储", "联邦基金", "fomc",
+            "欧央行", "ecb", "boe", "英央行", "boj", "日央行", "央行",
+            "利率决议", "货币政策", "鲍威尔", "拉加德", "点阵图"
+        ]
+    },
+    {
+        "score": 3,
+        "label": "宏观数据",
+        "keywords": [
+            "cpi", "ppi", "gdp", "非农", "nfp", "失业率", "pmi",
+            "就业数据", "通胀数据", "就业报告", "非农就业",
+            "adp", "初请失业金", "jolts", "零售销售", "工业产出"
+        ]
+    },
+    {
+        "score": 3,
+        "label": "地缘冲突",
+        "keywords": [
+            "战争", "制裁", "关税", "冲突", "地缘", "军事",
+            "俄乌", "巴以", "台海", "核武", "入侵", "空袭", "导弹",
+            "红海", "胡塞", "停火", "和谈"
+        ]
+    },
+    # ===== 第二档 +2 分：间接但显著影响 =====
+    {
+        "score": 2,
+        "label": "公司事件",
+        "keywords": [
+            "财报", "收购", "并购", "破产", "重组", "监管",
+            "sec", "立案", "退市", "供股", "回购", "反垄断", "处罚"
+        ]
+    },
+    {
+        "score": 2,
+        "label": "大宗商品",
+        "keywords": [
+            "金价", "银价", "油价", "铜价", "大宗商品", "原油",
+            "黄金", "白银", "原油期货", "铁矿石", "天然气", "煤价"
+        ]
+    },
+    {
+        "score": 2,
+        "label": "市场情绪/资金",
+        "keywords": [
+            "恐慌指数", "vix", "资金流向", "资金流入", "资金流出",
+            "etf持仓", "黄金etf", "比特币etf", "期权", "持仓量",
+            "杠杆", "爆仓", "清算"
+        ]
+    }
+]
+
+# 基础分：未命中任何关键词的"软性新闻"默认分（蛋疼水平）
+IMPACT_BASE_SCORE = 3
+
+# 影响分上下限（1-10 分制）
+IMPACT_SCORE_MIN = 1
+IMPACT_SCORE_MAX = 10
+
+# 影响分阈值（用于前端标签显示）
+#   - 高影响：score >= IMPACT_THRESHOLD_HIGH（默认 8）
+#   - 中影响：score >= IMPACT_THRESHOLD_MID（默认 5）
+#   - 低影响：其余（不显示标签，减少视觉噪音）
+IMPACT_THRESHOLD_HIGH = 8
+IMPACT_THRESHOLD_MID = 5
+
 # RSS 源列表（覆盖全球/贵金属/股票/币圈四大栏目，GitHub Actions 环境下稳定可访问、无需翻墙）
 # default_category = None → 交给 DeepSeek AI 自动分类
 # default_category = 'crypto' 等 → AI 失败时兜底用，避免误分到 global
@@ -277,8 +356,14 @@ DEEPSEEK_SYSTEM_PROMPT = """你是一个专业的财经新闻编辑助手。对�
    - 数字、价格、百分比、日期、机构名、人名等关键事实必须保留
    - 如果原摘要已经简洁完整、≤100 字、且无情绪化表述，可只做翻译/润色，不强制重写
 
+4) K 线影响度评分：根据新闻对金融市场 K 线的直接影响程度，打 1-10 分（必须为整数）：
+   - 10 分：直接驱动 K 线（美联储加息/降息决议公布、非农/CPI 数据公布、战争爆发、重大制裁、紧急熔断）
+   - 7-9 分：间接但显著影响（央行官员讲话、地缘紧张升级、重要经济数据预告、大型公司财报暴雷）
+   - 4-6 分：有参考价值但不直接（行业长期趋势、产业政策、并购重组、大宗商品价格波动）
+   - 1-3 分：基本不影响 K 线（社会趣闻、明星八卦、软性话题、纯行业资讯）
+
 输出必须是严格的 JSON，不要有任何额外文字、Markdown 或代码块，格式如下：
-{"category": "global", "title": "中文标题", "summary": "100 字以内的中文摘要"}"""
+{"category": "global", "title": "中文标题", "summary": "100 字以内的中文摘要", "impact_score": 8}"""
 
 
 # ============================================================
@@ -329,6 +414,28 @@ def fallback_classify(title: str, summary: str) -> str:
         return best_cat
     # 实在无法判断 → 归到 global
     return "global"
+
+
+def keyword_impact_score(title: str, summary: str) -> tuple:
+    """根据 IMPACT_KEYWORDS 加分规则计算 K 线影响分
+
+    Returns:
+        (score, matched_labels):
+          - score: 最终分数（clamp 到 1-10）
+          - matched_labels: 命中的规则标签列表（用于日志/调试）
+    """
+    text = f"{title} {summary}".lower()
+    score = IMPACT_BASE_SCORE
+    matched_labels: List[str] = []
+    for rule in IMPACT_KEYWORDS:
+        for kw in rule["keywords"]:
+            if kw.lower() in text:
+                score += rule["score"]
+                matched_labels.append(rule["label"])
+                break  # 同规则内只加一次分
+    # clamp 到 1-10
+    score = max(IMPACT_SCORE_MIN, min(IMPACT_SCORE_MAX, score))
+    return score, matched_labels
 
 
 def truncate_summary(text: str, max_chars: int = 100) -> str:
@@ -532,7 +639,6 @@ def call_deepseek(
         out_summary = clean_text(data.get("summary") or summary)
 
         # 字数硬约束兜底：AI 偶尔会突破 100 字 → 智能按句号截断
-        # 截断后与原 summary 等长视为 AI 没生成有效内容 → 退回原 summary
         if len(out_summary) > MAX_SUMMARY_CHARS:
             truncated = truncate_summary(out_summary, MAX_SUMMARY_CHARS)
             if truncated and len(truncated) < len(out_summary):
@@ -542,10 +648,34 @@ def call_deepseek(
                 )
                 out_summary = truncated
 
+        # K 线影响分：AI 评分 + 关键词加分校验
+        #   - AI 返回非法值（非整数/越界） → 用关键词分数
+        #   - AI 合法 → 取 max(ai_score, keyword_score)，防止 AI 漏判重要关键词
+        kw_score, kw_labels = keyword_impact_score(title, summary)
+        raw_score = data.get("impact_score")
+        try:
+            ai_score = int(raw_score)
+            if ai_score < IMPACT_SCORE_MIN or ai_score > IMPACT_SCORE_MAX:
+                raise ValueError(f"越界 {ai_score}")
+        except (TypeError, ValueError):
+            log(f"  DeepSeek 返回非法 impact_score：{raw_score!r}，使用关键词分数 {kw_score}", "WARN")
+            ai_score = kw_score
+
+        final_score = max(ai_score, kw_score)
+        if final_score != ai_score:
+            log(
+                f"  影响分校准：AI={ai_score} → 关键词={kw_score}（命中: {','.join(kw_labels) or '无'}）"
+                f" → 最终 {final_score}",
+                "INFO"
+            )
+        else:
+            log(f"  影响分：AI={ai_score} 关键词={kw_score} → 最终 {final_score}", "INFO")
+
         return {
             "category": category,
             "title": out_title,
-            "summary": out_summary
+            "summary": out_summary,
+            "impact_score": final_score
         }
     except json.JSONDecodeError as e:
         log(f"  DeepSeek 返回 JSON 解析失败：{e}", "ERROR")
@@ -582,19 +712,25 @@ def process_news_with_ai(
             source_default_cat=src_default
         )
         if not ai_result:
-            # AI 失败 → 分类用源 default / 关键词兜底，摘要保留原 RSS 摘要
+            # AI 失败 → 分类用源 default / 关键词兜底，摘要保留原 RSS 摘要，
+            # 影响分用关键词加分规则计算（保证排序仍有效）
             if src_default and src_default in VALID_CATEGORIES:
                 category = src_default
             else:
                 category = fallback_classify(item["raw_title"], item["raw_summary"])
+            kw_score, kw_labels = keyword_impact_score(
+                item["raw_title"], item["raw_summary"]
+            )
             ai_result = {
                 "category": category if category in VALID_CATEGORIES else "global",
                 "title": item["raw_title"],
-                "summary": item["raw_summary"]
+                "summary": item["raw_summary"],
+                "impact_score": kw_score
             }
             log(
                 f"  → AI 调用失败，保留原 RSS 摘要（{len(item['raw_summary'])} 字），"
-                f"分类兜底为 {ai_result['category']}",
+                f"分类兜底为 {ai_result['category']}，影响分关键词={kw_score}"
+                f"（命中: {','.join(kw_labels) or '无'}）",
                 "WARN"
             )
         else:
@@ -644,6 +780,7 @@ def process_news_with_ai(
             "source": item["source"],
             "original_link": item.get("link", ""),
             "published": item.get("published", ""),
+            "impact_score": ai_result.get("impact_score", IMPACT_BASE_SCORE),
             "content_hash": item["content_hash"],
             "created_at": datetime.now(BEIJING_TZ).isoformat()
         }
@@ -738,6 +875,7 @@ CREATE TABLE IF NOT EXISTS news (
     source       VARCHAR(128),
     original_link TEXT,
     published    TIMESTAMPTZ,                    -- 原文发布时间（来自 RSS 的 published/updated）
+    impact_score INTEGER NOT NULL DEFAULT 5,    -- K 线影响度 1-10，前端按此降序排序
     content_hash VARCHAR(64) NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -745,6 +883,7 @@ CREATE TABLE IF NOT EXISTS news (
 CREATE INDEX IF NOT EXISTS idx_news_date     ON news(date);
 CREATE INDEX IF NOT EXISTS idx_news_category ON news(category);
 CREATE INDEX IF NOT EXISTS idx_news_published ON news(published);
+CREATE INDEX IF NOT EXISTS idx_news_impact   ON news(impact_score DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_news_date_hash ON news(date, content_hash);
 """)
         log("=" * 60, "WARN")

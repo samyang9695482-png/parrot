@@ -73,6 +73,7 @@
       <div class="detail-meta">
         <span class="detail-meta-item detail-meta-source" id="detailSource"></span>
         <span class="detail-meta-item detail-meta-time" id="detailTime"></span>
+        <span class="detail-meta-item detail-meta-impact" id="detailImpact" hidden></span>
         <a class="detail-meta-item detail-meta-link" id="detailSourceLink" href="#" target="_blank" rel="noopener noreferrer" hidden>原文链接 ↗</a>
       </div>
       <div class="detail-body" id="detailBody"></div>
@@ -169,6 +170,22 @@
       return div.innerHTML;
     }
 
+    // 根据 impact_score（1-10）返回标签 HTML 片段：
+    //   >=8  🔴 高影响
+    //   5-7  🟡 中影响
+    //   1-4  不显示（减少视觉噪音，让重点新闻自然凸显）
+    // 老数据没有 impact_score 字段时返回空串
+    function getImpactTagHtml(item) {
+      const score = parseInt(item.impact_score);
+      if (isNaN(score)) return '';
+      if (score >= 8) {
+        return `<span class="impact-tag impact-tag--high" title="K线影响度 ${score}/10">🔴 高影响 ${score}</span>`;
+      } else if (score >= 5) {
+        return `<span class="impact-tag impact-tag--mid" title="K线影响度 ${score}/10">🟡 中影响 ${score}</span>`;
+      }
+      return '';
+    }
+
     // ============================================================
     // 带超时的 fetch
     // ============================================================
@@ -243,6 +260,18 @@
       const byDate = {};                       // { dateStr -> { byCategory: {...}, total: N } }
       newsByCategory = {};
       CATEGORIES.forEach(cat => { newsByCategory[cat.key] = []; });
+
+      // ✅ K 线影响度排序：按 impact_score 降序（高分在前），同分按发布时间倒序
+      //    在 forEach 分组前对整个 newsList 排序一次，分组时各栏目的子数组自动继承这个顺序
+      newsList.sort((a, b) => {
+        const sa = parseInt(a.impact_score) || 0;
+        const sb = parseInt(b.impact_score) || 0;
+        if (sb !== sa) return sb - sa;
+        // 同分 → 新的在前（published 优先，回退 created_at）
+        const ta = new Date(a.published || a.created_at || 0).getTime() || 0;
+        const tb = new Date(b.published || b.created_at || 0).getTime() || 0;
+        return tb - ta;
+      });
 
       newsList.forEach(item => {
         // 兼容 date 列是 DATE（2026-08-20）或 TIMESTAMPTZ（带时间）两种情况，
@@ -355,7 +384,10 @@
           card.setAttribute('role', 'button');
           card.setAttribute('tabindex', '0');
           card.innerHTML = `
-            <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+            <div class="news-title-row">
+              <h3 class="news-title">${escapeHtml(item.title || '无标题')}</h3>
+              ${getImpactTagHtml(item)}
+            </div>
             <p class="news-summary">${escapeHtml(item.summary || '暂无摘要')}</p>
             <span class="news-read-more">查看详情 ›</span>
           `;
@@ -408,6 +440,21 @@
         item.source ? `来源：${item.source}` : '';
       const t = formatPublishTime(item);
       document.getElementById('detailTime').textContent = t ? `发布时间：${t}` : '';
+
+      // 影响分 chip：复用首页 getImpactTagHtml 的等级判定，但用 detail-meta-impact 样式
+      const impactEl = document.getElementById('detailImpact');
+      const score = parseInt(item.impact_score);
+      if (!isNaN(score)) {
+        let cls = 'impact-tag--mid', icon = '🟡', label = '中影响';
+        if (score >= 8) { cls = 'impact-tag--high'; icon = '🔴'; label = '高影响'; }
+        else if (score < 5) { cls = 'impact-tag--low'; icon = '⚪'; label = '低影响'; }
+        impactEl.className = `detail-meta-item detail-meta-impact impact-tag ${cls}`;
+        impactEl.textContent = `${icon} ${label} ${score}/10`;
+        impactEl.title = `K线影响度 ${score}/10`;
+        impactEl.hidden = false;
+      } else {
+        impactEl.hidden = true;
+      }
 
       // 正文优先 full_text；为空则退回 summary；都没有则占位
       const fullText = (item.full_text && item.full_text.toString().trim())

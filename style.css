@@ -242,7 +242,55 @@ body.detail-open {
   font-weight: 700;
   color: #1a3a5c;
   line-height: 1.5;
+  margin: 0;
+}
+
+/* 标题行：标题 + 影响分标签并排，标签靠右、不挤压标题 */
+.news-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+.news-title-row .news-title {
+  flex: 1;
+  min-width: 0;                       /* 允许收缩，长标题换行不被标签挤出 */
+}
+
+/* K 线影响度标签（卡片标题旁、详情页 meta 行共用）
+   - high: 红底白字，醒目
+   - mid:  橙底白字
+   - low:  灰底白字（仅详情页显示，首页不显示 1-4 分） */
+.impact-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.impact-tag--high {
+  background-color: #dc2626;          /* 高影响：醒目红 */
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+
+.impact-tag--mid {
+  background-color: #e8850e;          /* 中影响：品牌暖橙 */
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(232, 133, 14, 0.22);
+}
+
+.impact-tag--low {
+  background-color: #9ca3af;          /* 低影响：低调灰 */
+  color: #ffffff;
 }
 
 .news-summary {
@@ -710,6 +758,13 @@ body.detail-open {
   }
   .news-list-arrow {
     color: #6b7280;
+  }
+  /* 影响分标签深色模式：红/橙保持原色（够亮），低影响灰稍稍提亮 */
+  .impact-tag--low {
+    background-color: #6b7280;
+  }
+  .impact-tag {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   }
   .empty-card {
     background-color: #222630;
