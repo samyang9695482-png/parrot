@@ -58,6 +58,11 @@ FAIL_THRESHOLD = 3
 #     最后再补 global 综合源，避免 5 个综合源吃掉所有 150 条配额
 MAX_DAILY_AI_PROCESS = 150
 
+# AI 生成摘要的字符数上限（含中文标点，按 Unicode 字符数计算）
+#   - 提示词里已要求 AI 自我控制在 100 字以内
+#   - truncate_summary 兜底做硬截断，防止 AI 偶尔突破约束
+MAX_SUMMARY_CHARS = 100
+
 # 分层采样的优先级（每个 default_category 的权重越高，越先取）
 # None = 综合源（交给 AI 自由分类），放到最后才补
 SAMPLING_ORDER = ["crypto", "precious_metals", "stock", "global", None]
@@ -261,11 +266,19 @@ DEEPSEEK_SYSTEM_PROMPT = """你是一个专业的财经新闻编辑助手。对�
       黄金etf, 白银etf, 黄金期货, 白银期货, 央行购金, gold price, silver price, bullion
 
 2) 翻译：如果标题或摘要为英文，请翻译成流畅的简体中文；若已是中文则保持原样，但需修正不通顺之处。
-3) 压缩：将摘要压缩到不超过 2 句完整的话，去除一切情绪化、主观、夸张的表达（如"愚蠢""鲁莽""史诗级""暴跌"等），
-         只保留客观的、对投资者有价值的事实信息。
+
+3) 摘要生成：基于原摘要生成一段 100 字以内的中文摘要（含标点）。
+   硬要求：
+   - 字数严格 ≤ 100 字（按 Unicode 字符数计算，含中文标点），超出会被截断，请务必自己控制好
+   - 语言简洁、信息完整、适合快速阅读，只保留对投资者有价值的事实信息
+   - 必须使用客观陈述句，禁止任何情绪化、主观、夸张、评价性表述
+     · 禁用词举例：愚蠢、鲁莽、史诗级、暴跌、暴涨、惊人、震撼、前所未有、崩盘、狂飙、血洗、绝地
+     · 禁用句式举例：令人担忧、值得警惕、出人意料、不容乐观、引发恐慌、市场震惊
+   - 数字、价格、百分比、日期、机构名、人名等关键事实必须保留
+   - 如果原摘要已经简洁完整、≤100 字、且无情绪化表述，可只做翻译/润色，不强制重写
 
 输出必须是严格的 JSON，不要有任何额外文字、Markdown 或代码块，格式如下：
-{"category": "global", "title": "中文标题", "summary": "压缩后的两句话以内的中文摘要"}"""
+{"category": "global", "title": "中文标题", "summary": "100 字以内的中文摘要"}"""
 
 
 # ============================================================
@@ -316,6 +329,42 @@ def fallback_classify(title: str, summary: str) -> str:
         return best_cat
     # 实在无法判断 → 归到 global
     return "global"
+
+
+def truncate_summary(text: str, max_chars: int = 100) -> str:
+    """把摘要截断到 ≤ max_chars 字符（按 Unicode 字符数计算，含中文标点）
+
+    策略：按句末标点（。！？；）分段，逐句累加，直到加下一句会超限就停；
+    如果单句就超限（极端情况），硬切到 max_chars 并加省略号。
+    用于兜底 AI 不严格遵守 100 字约束的情况。
+    """
+    if not text:
+        return ""
+    # 按句末标点切分，保留标点
+    sentences = re.split(r"(?<=[。！？；])", text)
+    sentences = [s for s in sentences if s.strip()]
+    if not sentences:
+        # 全是空白 → 直接 trim
+        return text.strip()[:max_chars]
+
+    out = ""
+    for s in sentences:
+        if len(out) + len(s) <= max_chars:
+            out += s
+        else:
+            # 加这句会超 → 停止累加
+            break
+
+    # 如果第一句就超限，或者累加后还很短就停了但还有剩余 → 视情况硬切
+    if not out:
+        # 第一句就超过 max_chars → 硬切 + 省略号
+        hard = sentences[0][:max_chars - 1]
+        out = hard + "…"
+    elif len(out) < max_chars - 1 and len(out) < len(text):
+        # 还有空间但下一句太长，加省略号表示有省略
+        if not out.rstrip().endswith(("。", "！", "？", "；")):
+            out = out + "…"
+    return out.strip()
 
 
 # ============================================================
@@ -459,7 +508,7 @@ def call_deepseek(
                 {"role": "user", "content": user_content}
             ],
             temperature=0.3,
-            max_tokens=800,
+            max_tokens=480,                    # ≤100 字 summary + 标题 + JSON 结构，足够且省成本
             timeout=45
         )
         raw = resp.choices[0].message.content or ""
@@ -481,6 +530,18 @@ def call_deepseek(
                 category = fb if fb in VALID_CATEGORIES else "global"
         out_title = clean_text(data.get("title") or title)
         out_summary = clean_text(data.get("summary") or summary)
+
+        # 字数硬约束兜底：AI 偶尔会突破 100 字 → 智能按句号截断
+        # 截断后与原 summary 等长视为 AI 没生成有效内容 → 退回原 summary
+        if len(out_summary) > MAX_SUMMARY_CHARS:
+            truncated = truncate_summary(out_summary, MAX_SUMMARY_CHARS)
+            if truncated and len(truncated) < len(out_summary):
+                log(
+                    f"  摘要超长截断：{len(out_summary)} → {len(truncated)} 字",
+                    "INFO"
+                )
+                out_summary = truncated
+
         return {
             "category": category,
             "title": out_title,
@@ -521,7 +582,7 @@ def process_news_with_ai(
             source_default_cat=src_default
         )
         if not ai_result:
-            # AI 失败 → 先尝试源 default → 再尝试关键词兜底
+            # AI 失败 → 分类用源 default / 关键词兜底，摘要保留原 RSS 摘要
             if src_default and src_default in VALID_CATEGORIES:
                 category = src_default
             else:
@@ -531,7 +592,11 @@ def process_news_with_ai(
                 "title": item["raw_title"],
                 "summary": item["raw_summary"]
             }
-            log(f"  → AI 失败，使用源 default 兜底分类：{ai_result['category']}", "WARN")
+            log(
+                f"  → AI 调用失败，保留原 RSS 摘要（{len(item['raw_summary'])} 字），"
+                f"分类兜底为 {ai_result['category']}",
+                "WARN"
+            )
         else:
             # AI 成功：若为专属源但 AI 分类 != 源 default_cat，执行强制校正
             if (
