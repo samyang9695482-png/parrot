@@ -54,7 +54,34 @@
       <div class="loading-spinner"></div>
       <p class="loading-text">正在加载今日新闻...</p>
     </div>
-    <div id="newsContainer"></div>
+
+    <!-- ============== 事件倒计时二级页（默认隐藏，点"查看更多"显示） ============== -->
+    <div id="eventsListView" class="events-list-view" hidden>
+      <div class="events-back-bar">
+        <button class="back-btn" id="eventsBackBtn" type="button">‹ 返回</button>
+        <h2 class="events-back-bar-title">📅 事件倒计时</h2>
+      </div>
+      <div id="eventsListContainer" class="events-list-container">
+        <!-- 全部事件纵向列表，由 JS 动态渲染 -->
+      </div>
+    </div>
+
+    <!-- ============== 首页视图（默认显示） ============== -->
+    <div id="homeView" class="home-view">
+      <!-- 事件倒计时横向滚动卡片区 -->
+      <section id="eventsSection" class="events-section" hidden>
+        <div class="events-section-header">
+          <h2 class="events-section-title">📅 即将发生</h2>
+          <button class="events-more-btn" id="eventsMoreBtn" type="button">查看更多 ›</button>
+        </div>
+        <div id="eventsContainer" class="events-container">
+          <!-- 横向滚动卡片由 JS 动态生成 -->
+        </div>
+      </section>
+
+      <div id="newsContainer"></div>
+    </div>
+
     <!-- 底部品牌信息（替代原下载按钮位置） -->
     <footer class="brand-footer">
       <div class="brand-footer-inner">
@@ -511,6 +538,200 @@
     }
 
     // ============================================================
+    // 事件倒计时（events 表）
+    // ============================================================
+
+    const EVENT_CATEGORIES = {
+      global: '🌍 全球',
+      precious_metals: '💰 贵金属',
+      stock: '📈 股票',
+      crypto: '🪙 币圈'
+    };
+
+    // 重要性元信息：标签 + 样式类 + 图标
+    const IMPORTANCE_META = {
+      high: { label: '高', cls: 'importance--high', icon: '🔴' },
+      mid:  { label: '中', cls: 'importance--mid',  icon: '🟡' },
+      low:  { label: '低', cls: 'importance--low',  icon: '⚪' }
+    };
+
+    let allEventsCache = [];      // 全部事件缓存（首页 + 二级页都从这里取）
+    let countdownTimerId = null;  // 倒计时定时器（每分钟刷新一次）
+
+    // 拉取最近 15 天内的事件（已结束保留 15 天，超过由后端自动清理）
+    async function fetchEvents() {
+      const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+      const url = `${SUPABASE_URL}/rest/v1/events?select=*&event_time=gte.${cutoff}&order=event_time.asc`;
+      console.log('📅 请求事件 URL:', url);
+      const resp = await fetchWithTimeout(url, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }, 5000);
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${text}`);
+      }
+      return resp.json();
+    }
+
+    // 把 ISO 时间转成北京时间可读格式：YYYY-MM-DD HH:MM
+    function formatEventTime(isoStr) {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+      const bj = new Date(d.getTime() + BEIJING_OFFSET_MS);
+      const y = bj.getUTCFullYear();
+      const m = String(bj.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(bj.getUTCDate()).padStart(2, '0');
+      const hh = String(bj.getUTCHours()).padStart(2, '0');
+      const mm = String(bj.getUTCMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    // 倒计时文本：已结束 → "已结束"；未结束 → "还有 X 天 Y 小时" 等
+    function formatCountdownText(eventTimeStr) {
+      const target = new Date(eventTimeStr).getTime();
+      const diff = target - Date.now();
+      if (diff <= 0) return '已结束';
+      const days = Math.floor(diff / 86400000);
+      const hours = Math.floor((diff % 86400000) / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const parts = [];
+      if (days > 0) parts.push(`${days} 天`);
+      if (hours > 0) parts.push(`${hours} 小时`);
+      // 没到天的级别，显示分钟更精确
+      if (days === 0) parts.push(`${minutes} 分钟`);
+      if (parts.length === 0) return '即将开始';
+      return `还有 ${parts.join(' ')}`;
+    }
+
+    function getImportanceMeta(importance) {
+      return IMPORTANCE_META[importance] || IMPORTANCE_META.mid;
+    }
+
+    function getEventCategoryLabel(catKey) {
+      return EVENT_CATEGORIES[catKey] || catKey;
+    }
+
+    // 首页事件倒计时横滚卡片：仅显示最近 3 条 upcoming
+    function renderEventsSection(events) {
+      const section = document.getElementById('eventsSection');
+      const container = document.getElementById('eventsContainer');
+      const now = Date.now();
+      const upcoming = events
+        .filter(e => e.status === 'upcoming' && new Date(e.event_time).getTime() > now)
+        .slice(0, 3);
+      if (upcoming.length === 0) {
+        section.hidden = true;   // 没有即将发生的事件 → 整个区隐藏，不干扰新闻
+        return;
+      }
+      section.hidden = false;
+      container.innerHTML = upcoming.map(ev => {
+        const imp = getImportanceMeta(ev.importance);
+        return `
+          <article class="event-card" role="button" tabindex="0">
+            <div class="event-card-top">
+              <span class="event-card-importance ${imp.cls}">${imp.icon} ${imp.label}</span>
+              <span class="event-card-countdown" data-event-time="${ev.event_time}">
+                ${formatCountdownText(ev.event_time)}
+              </span>
+            </div>
+            <h3 class="event-card-title">${escapeHtml(ev.title)}</h3>
+            <div class="event-card-bottom">
+              <span class="event-card-category">${getEventCategoryLabel(ev.category)}</span>
+              <span class="event-card-time">${formatEventTime(ev.event_time)}</span>
+            </div>
+          </article>
+        `;
+      }).join('');
+      // 卡片点击 → 进入二级页
+      container.querySelectorAll('.event-card').forEach(card => {
+        card.addEventListener('click', () => showEventsListView());
+        card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showEventsListView(); }
+        });
+      });
+    }
+
+    // 二级页全部事件列表：按时间正序（最近的在前）
+    function renderEventsList(events) {
+      const container = document.getElementById('eventsListContainer');
+      if (!events || events.length === 0) {
+        container.innerHTML = `
+          <div class="events-empty">
+            📭 暂无事件<br>
+            <small>系统每天 06:30 自动维护</small>
+          </div>
+        `;
+        return;
+      }
+      const sorted = [...events].sort((a, b) =>
+        new Date(a.event_time).getTime() - new Date(b.event_time).getTime()
+      );
+      container.innerHTML = sorted.map(ev => {
+        const imp = getImportanceMeta(ev.importance);
+        const isEnded = ev.status === 'ended' ||
+          new Date(ev.event_time).getTime() < Date.now();
+        return `
+          <article class="event-list-card ${isEnded ? 'event-list-card--ended' : ''}">
+            <div class="event-list-card-top">
+              <span class="event-card-importance ${imp.cls}">${imp.icon} ${imp.label}影响</span>
+              <span class="event-list-card-countdown ${isEnded ? 'event-countdown-ended' : ''}" data-event-time="${ev.event_time}">
+                ${isEnded ? '已结束' : formatCountdownText(ev.event_time)}
+              </span>
+            </div>
+            <h3 class="event-list-card-title">${escapeHtml(ev.title)}</h3>
+            <div class="event-list-card-meta">
+              <span class="event-card-category">${getEventCategoryLabel(ev.category)}</span>
+              <span class="event-card-time">${formatEventTime(ev.event_time)}</span>
+            </div>
+            ${ev.description ? `<p class="event-list-card-desc">${escapeHtml(ev.description)}</p>` : ''}
+            ${ev.source_url ? `<a class="event-list-card-source" href="${escapeHtml(ev.source_url)}" target="_blank" rel="noopener noreferrer">来源 ↗</a>` : ''}
+          </article>
+        `;
+      }).join('');
+    }
+
+    // 每分钟刷新一次所有 data-event-time 元素的倒计时文本
+    function startCountdownTicker() {
+      if (countdownTimerId) clearInterval(countdownTimerId);
+      countdownTimerId = setInterval(() => {
+        document.querySelectorAll('[data-event-time]').forEach(el => {
+          if (el.classList.contains('event-countdown-ended')) return;
+          const time = el.getAttribute('data-event-time');
+          const target = new Date(time).getTime();
+          if (target < Date.now()) {
+            el.textContent = '已结束';
+            el.classList.add('event-countdown-ended');
+          } else {
+            el.textContent = formatCountdownText(time);
+          }
+        });
+      }, 60000);  // 60 秒
+    }
+
+    // 视图切换：首页 ↔ 事件二级页
+    function showEventsListView() {
+      document.getElementById('homeView').hidden = true;
+      document.getElementById('eventsListView').hidden = false;
+      renderEventsList(allEventsCache);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showHomeView() {
+      document.getElementById('eventsListView').hidden = true;
+      document.getElementById('homeView').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 事件按钮事件绑定（一次绑定，无需重复）
+    document.getElementById('eventsMoreBtn').addEventListener('click', showEventsListView);
+    document.getElementById('eventsBackBtn').addEventListener('click', showHomeView);
+
+    // ============================================================
     // 主流程
     // ============================================================
 
@@ -521,12 +742,29 @@
       const container = document.getElementById('newsContainer');
 
       try {
-        console.log('🚀 开始加载数据...');
-        const news = await fetchTodayNews();
-        console.log('✅ 获取到数据条数:', news.length);
+        console.log('🚀 开始加载新闻 + 事件...');
+        // 并行加载：新闻失败 → 抛错进 catch；事件失败 → 静默吞掉返回空数组，不阻塞新闻
+        const [news, events] = await Promise.all([
+          fetchTodayNews().catch(err => {
+            console.error('❌ 新闻加载失败:', err);
+            throw err;
+          }),
+          fetchEvents().catch(err => {
+            console.error('❌ 事件加载失败:', err);
+            return [];
+          })
+        ]);
+        console.log('✅ 获取到新闻:', news.length, '事件:', events.length);
+
+        // 事件先渲染（缓存供二级页用 + 启动倒计时定时器）
+        allEventsCache = events;
+        renderEventsSection(events);
+        startCountdownTicker();
+
+        // 新闻渲染
         renderNews(news);
       } catch (err) {
-        console.error('❌ 加载失败:', err);
+        console.error('❌ 主加载失败:', err);
         container.innerHTML = `
           <div style="text-align:center;padding:40px 20px;color:#e74c3c;font-size:18px;">
             ⚠️ 加载失败<br>

@@ -1094,3 +1094,372 @@ body.detail-open {
     box-shadow: 0 4px 16px rgba(232, 133, 14, 0.5);
   }
 }
+
+/* ============================================================
+   事件倒计时区（首页横向滚动 + 二级页纵向列表）
+   ============================================================ */
+
+/* 首页事件区标题行：左侧"📅 即将发生" + 右侧"查看更多" */
+.events-section {
+  margin: 0 0 24px;
+}
+
+.events-section[hidden] {
+  display: none !important;
+}
+
+.events-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 14px;
+  padding: 0 4px;
+}
+
+.events-section-title {
+  font-size: 22px;                          /* 比新闻栏目标题稍小，保持层级 */
+  font-weight: 700;
+  color: #1a3a5c;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.events-more-btn {
+  background: none;
+  border: none;
+  color: #e8850e;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.events-more-btn:hover {
+  background-color: rgba(232, 133, 14, 0.08);
+}
+
+.events-more-btn:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+/* 横向滚动容器 */
+.events-container {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 4px 12px 4px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;        /* iOS 顺滑滚动 */
+  scrollbar-width: thin;
+  scrollbar-color: #e8850e transparent;
+}
+
+.events-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.events-container::-webkit-scrollbar-thumb {
+  background-color: rgba(232, 133, 14, 0.3);
+  border-radius: 3px;
+}
+
+/* 单张事件卡片（首页横滚版） */
+.event-card {
+  flex: 0 0 260px;                            /* 固定宽度，确保横滚不换行 */
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid #f0f0f0;
+}
+
+.event-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.event-card:active {
+  transform: translateY(0);
+}
+
+.event-card:focus-visible {
+  outline: 3px solid #e8850e;
+  outline-offset: 2px;
+}
+
+.event-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-card-countdown {
+  font-size: 17px;
+  font-weight: 700;
+  color: #e8850e;                            /* 倒计时用品牌橙，醒目 */
+  white-space: nowrap;
+}
+
+.event-card-title {
+  font-size: 19px;                            /* 关怀版大字 */
+  font-weight: 600;
+  color: #1a3a5c;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;                      /* 标题最多两行，超出截断 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: auto;                           /* 把底部信息推到卡片底部 */
+}
+
+.event-card-category {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.event-card-time {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* 重要性标签（首页和二级页共用） */
+.event-card-importance {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.importance--high {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.importance--mid {
+  background-color: #e8850e;
+  color: #ffffff;
+}
+
+.importance--low {
+  background-color: #9ca3af;
+  color: #ffffff;
+}
+
+/* ============================================================
+   事件二级页（eventsListView）
+   ============================================================ */
+
+.events-list-view[hidden] {
+  display: none !important;
+}
+
+.home-view[hidden] {
+  display: none !important;
+}
+
+.events-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 12px 4px;
+}
+
+.events-back-bar-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a3a5c;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+/* 二级页：纵向列表卡片 */
+.events-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.event-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background-color: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: box-shadow 0.15s ease;
+}
+
+.event-list-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+/* 已结束事件：整张卡片淡化 */
+.event-list-card--ended {
+  opacity: 0.6;
+  background-color: #fafafa;
+}
+
+.event-list-card--ended .event-list-card-title {
+  color: #6b7280;
+}
+
+.event-list-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.event-list-card-countdown {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e8850e;
+}
+
+.event-countdown-ended {
+  color: #9ca3af;                              /* 已结束标签低调灰 */
+  font-weight: 500;
+}
+
+.event-list-card-title {
+  font-size: 22px;                             /* 关怀版大字 */
+  font-weight: 700;
+  color: #1a3a5c;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.event-list-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 15px;
+  color: #6b7280;
+}
+
+.event-list-card-desc {
+  font-size: 16px;
+  color: #4b5563;
+  line-height: 1.6;
+  margin: 4px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.event-list-card-source {
+  display: inline-block;
+  margin-top: 4px;
+  color: #e8850e;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  border-bottom: 1px dashed rgba(232, 133, 14, 0.4);
+  padding-bottom: 1px;
+}
+
+.event-list-card-source:hover {
+  color: #d0760c;
+  border-bottom-color: #d0760c;
+}
+
+.events-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.events-empty small {
+  font-size: 14px;
+  color: #b0b6bf;
+}
+
+/* ============================================================
+   事件倒计时深色模式覆盖
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .events-section-title,
+  .events-back-bar-title,
+  .event-card-title,
+  .event-list-card-title {
+    color: #f9fafb;
+  }
+
+  .event-card,
+  .event-list-card {
+    background-color: #262a33;
+    border-color: #374151;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  .event-list-card--ended {
+    background-color: #1f2229;
+    opacity: 0.7;
+  }
+
+  .event-list-card--ended .event-list-card-title {
+    color: #9ca3af;
+  }
+
+  .event-card-bottom,
+  .event-list-card-meta {
+    color: #9ca3af;
+  }
+
+  .event-card-category {
+    color: #d1d5db;
+  }
+
+  .event-card-time {
+    color: #6b7280;
+  }
+
+  .event-list-card-desc {
+    color: #d1d5db;
+    border-top-color: #374151;
+  }
+
+  .events-empty {
+    color: #6b7280;
+  }
+
+  .events-empty small {
+    color: #4b5563;
+  }
+
+  .events-more-btn:hover {
+    background-color: rgba(232, 133, 14, 0.15);
+  }
+}
